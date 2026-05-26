@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LinhKienPRO">
+<meta name="theme-color" content="#1D9E75">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect fill='%231D9E75' width='180' height='180'/><text x='50%' y='50%' font-size='80' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central'>L</text></svg>">
+<title>LinhKienPRO - Quản lý linh kiện điện thoại</title>
+<link rel="manifest" href="data:application/manifest+json,{%22name%22:%22LinhKienPRO%22,%22short_name%22:%22LinhKien%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%23ffffff%22,%22theme_color%22:%22%231D9E75%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231D9E75' width='192' height='192'/><text x='96' y='96' font-size='100' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central'>L</text></svg>%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg+xml%22}]}">
+<style>
+:root {
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f4f6f8;
+  --color-bg-tertiary: #edf0f3;
+  --color-text-primary: #1a2332;
+  --color-text-secondary: #6b7a90;
+  --color-border-primary: #c8d0db;
+  --color-border-secondary: #d8dfe8;
+  --color-border-tertiary: #e8ecf0;
+  --color-green: #1D9E75;
+  --color-green-light: #E1F5EE;
+  --color-green-dark: #0F6E56;
+  --color-blue: #185FA5;
+  --color-blue-light: #E6F1FB;
+  --color-amber: #854F0B;
+  --color-amber-light: #FAEEDA;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; width: 100%; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: var(--color-text-primary); background: var(--color-bg-tertiary); overflow: hidden; }
+
+.app { display: flex; height: 100vh; width: 100%; }
+
+/* SIDEBAR */
+.sidebar { 
+  width: 200px; background: var(--color-bg-primary); border-right: 0.5px solid var(--color-border-tertiary);
+  display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; transition: transform 0.3s ease;
+  position: relative; z-index: 100;
+}
+
+.logo { padding: 16px; font-size: 14px; font-weight: 600; border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 8px; }
+.logo span { color: var(--color-green); }
+
+.nav-item {
+  padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; 
+  color: var(--color-text-secondary); font-size: 13px; transition: all 0.2s;
+}
+.nav-item:hover { background: var(--color-bg-secondary); color: var(--color-text-primary); }
+.nav-item.active { background: var(--color-green-light); color: var(--color-green-dark); font-weight: 600; border-left: 3px solid var(--color-green); padding-left: 13px; }
+.nav-item i { font-size: 18px; flex-shrink: 0; }
+.nav-item .badge { margin-left: auto; }
+
+/* MAIN LAYOUT */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  padding: 12px 16px; background: var(--color-bg-primary); border-bottom: 0.5px solid var(--color-border-tertiary);
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 12px;
+}
+.topbar-title { font-size: 14px; font-weight: 600; }
+.topbar-actions { display: flex; gap: 8px; align-items: center; }
+.menu-toggle { display: none; background: none; border: none; cursor: pointer; font-size: 20px; }
+
+.content { flex: 1; overflow-y: auto; padding: 12px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* STATS */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.stat { background: var(--color-bg-secondary); border-radius: 8px; padding: 12px; }
+.stat-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+.stat-value { font-size: 16px; font-weight: 600; }
+
+/* CARDS & TABLES */
+.card { background: var(--color-bg-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.card-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.card-title { font-size: 13px; font-weight: 600; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { font-size: 11px; color: var(--color-text-secondary); padding: 6px; border-bottom: 0.5px solid var(--color-border-tertiary); text-align: left; font-weight: 600; }
+td { padding: 6px; border-bottom: 0.5px solid var(--color-border-tertiary); vertical-align: middle; }
+tr:hover td { background: var(--color-bg-secondary); }
+tr:last-child td { border-bottom: none; }
+
+/* BADGES */
+.badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+.bg-green { background: var(--color-green-light); color: var(--color-green-dark); }
+.bg-amber { background: var(--color-amber-light); color: var(--color-amber); }
+.bg-blue { background: var(--color-blue-light); color: var(--color-blue); }
+.bg-red { background: #FCEBEB; color: #A32D2D; }
+.bg-purple { background: #EEEDFE; color: #3C3489; }
+
+/* BUTTONS */
+.btn { padding: 8px 12px; border-radius: 6px; border: 0.5px solid var(--color-border-secondary); background: var(--color-bg-primary); cursor: pointer; font-size: 12px; color: var(--color-text-primary); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+.btn:hover { background: var(--color-bg-secondary); }
+.btn-green { background: var(--color-green); color: white; border-color: var(--color-green); }
+.btn-green:hover { background: var(--color-green-dark); }
+.btn-blue { background: var(--color-blue); color: white; border-color: var(--color-blue); }
+.btn-blue:hover { background: #0C447C; }
+.btn-sm { padding: 4px 8px; font-size: 11px; }
+
+/* FORMS */
+.inp, .sel { padding: 7px 10px; border: 0.5px solid var(--color-border-secondary); border-radius: 6px; background: var(--color-bg-primary); color: var(--color-text-primary); font-size: 12px; }
+.inp { width: 100%; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.fg { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.fg label { font-size: 11px; color: var(--color-text-secondary); font-weight: 500; }
+
+/* UTILS */
+.green { color: var(--color-green-dark); }
+.blue { color: var(--color-blue); }
+.amber { color: var(--color-amber); }
+.red { color: #A32D2D; }
+.profit-pill { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 11px; background: var(--color-green-light); color: var(--color-green-dark); font-weight: 500; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-blue-light); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--color-blue); flex-shrink: 0; }
+
+/* MODALS & POPUPS */
+.modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 200; }
+.modal.active { display: flex; }
+.modal-content { background: var(--color-bg-primary); border-radius: 10px; padding: 20px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+.modal-close { float: right; font-size: 24px; cursor: pointer; font-weight: bold; color: var(--color-text-secondary); }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .app { flex-direction: column; }
+  .sidebar { 
+    width: 100%; height: auto; border-right: none; border-bottom: 0.5px solid var(--color-border-tertiary);
+    flex-direction: row; max-height: 60px; position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    align-items: center; overflow-x: auto; overflow-y: hidden; padding-bottom: 0;
+  }
+  .sidebar-header { display: none; }
+  .logo { display: none; }
+  .nav-item { padding: 8px 12px; font-size: 11px; flex-shrink: 0; }
+  .nav-item i { font-size: 16px; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .topbar { flex-wrap: wrap; }
+  .topbar-actions { width: 100%; }
+  .main { margin-bottom: 60px; }
+  .content { padding: 10px; }
+  table { font-size: 11px; }
+  th, td { padding: 4px; }
+  .btn { padding: 6px 10px; font-size: 11px; }
+  .inp, .sel { font-size: 11px; padding: 6px 8px; }
+  .card { padding: 10px; margin-bottom: 8px; }
+  .row2 { gap: 6px; margin-bottom: 6px; }
+}
+
+/* SHIPPING LABEL */
+.shipping-label {
+  background: white; border: 2px solid #000; padding: 20px; margin: 20px 0; font-family: monospace;
+  width: 400px; max-width: 100%;
+}
+.label-header { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+.label-sender { border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; font-size: 11px; }
+.label-receiver { font-size: 13px; font-weight: bold; margin-bottom: 15px; }
+.label-barcode { text-align: center; font-size: 20px; letter-spacing: 3px; margin: 15px 0; font-weight: bold; font-family: 'Courier New'; }
+.label-cod { border: 2px solid #ff0000; padding: 10px; text-align: center; background: #ffe0e0; margin: 10px 0; }
+.label-cod-value { font-size: 18px; font-weight: bold; color: #ff0000; }
+.label-status { margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar">
+  <div class="logo" style="padding: 12px; display: flex; align-items: center;">
+    <span style="font-size: 18px;">📦</span>
+    <strong style="font-size: 14px;">LINH<span style="color: var(--color-green);">KIỆN</span></strong>
+  </div>
+  <div class="nav-item active" onclick="go('dashboard', this)" title="Tổng quan"><i class="ti ti-dashboard">📊</i><span class="nav-label">Tổng quan</span></div>
+  <div class="nav-item" onclick="go('messenger', this)" title="Messenger"><i class="ti ti-brand-messenger">💬</i><span class="nav-label">Tin nhắn</span><span class="badge bg-blue" style="margin-left: auto; padding: 2px 5px;">3</span></div>
+  <div class="nav-item" onclick="go('invoice', this)" title="Tạo hóa đơn"><i class="ti ti-file-invoice">📄</i><span class="nav-label">Hóa đơn</span></div>
+  <div class="nav-item" onclick="go('products', this)" title="Sản phẩm"><i class="ti ti-package">📦</i><span class="nav-label">Sản phẩm</span></div>
+  <div class="nav-item" onclick="go('customers', this)" title="Khách hàng"><i class="ti ti-users">👥</i><span class="nav-label">Khách</span></div>
+  <div class="nav-item" onclick="go('orders', this)" title="Lịch sử đơn"><i class="ti ti-list">📋</i><span class="nav-label">Đơn hàng</span></div>
+  <div class="nav-item" onclick="go('shipping', this)" title="Vận chuyển"><i class="ti ti-truck">🚚</i><span class="nav-label">Vận chuyển</span></div>
+  <div class="nav-item" onclick="go('settings', this)" title="Cài đặt"><i class="ti ti-settings">⚙️</i><span class="nav-label">Cài đặt</span></div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-title" id="ptitle">Tổng quan</div>
+  <div class="topbar-actions">
+    <input class="inp" style="width: 180px; max-width: 200px;" type="text" placeholder="Tìm kiếm...">
+    <button class="btn btn-green" onclick="go('invoice', document.querySelectorAll('.nav-item')[2])">➕ Hóa đơn mới</button>
+  </div>
+</div>
+
+<!-- CONTENT AREA -->
+<div class="content">
+
+<!-- DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Doanh thu hôm nay</div><div class="stat-value green">5.850.000đ</div></div>
+    <div class="stat"><div class="stat-label">Lợi nhuận hôm nay</div><div class="stat-value blue">1.240.000đ</div></div>
+    <div class="stat"><div class="stat-label">Đơn hôm nay</div><div class="stat-value">15</div></div>
+    <div class="stat"><div class="stat-label">Chờ giao</div><div class="stat-value amber">8</div></div>
+  </div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Đơn gần đây</div></div>
+      <table>
+        <tr><th>Khách</th><th>Tổng</th><th>TT</th></tr>
+        <tr><td>Shop Minh Tuấn</td><td>1.100.000đ</td><td><span class="badge bg-green">Đã giao</span></td></tr>
+        <tr><td>Nguyễn Văn A</td><td>110.000đ</td><td><span class="badge bg-green">Đã giao</span></td></tr>
+        <tr><td>Cửa hàng 3T</td><td>300.000đ</td><td><span class="badge bg-amber">Chờ lấy</span></td></tr>
+        <tr><td>Phong Mobile</td><td>3.600.000đ</td><td><span class="badge bg-blue">Đang giao</span></td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Tin nhắn Messenger mới</div><button class="btn btn-sm" onclick="go('messenger', document.querySelectorAll('.nav-item')[1])">Xem</button></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; background: var(--color-bg-secondary); font-size: 11px;">
+          <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">MT</div>
+          <div style="flex: 1; min-width: 0;"><strong>Shop Minh Tuấn</strong><br><span style="color: var(--color-text-secondary);">Cho mình 50 cái kính iphone...</span></div>
+          <span class="badge bg-blue">Mới</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MESSENGER -->
+<div class="page" id="page-messenger">
+  <div class="card" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; height: 60vh;">
+    <div style="border-right: 0.5px solid var(--color-border-tertiary); overflow-y: auto;">
+      <div class="card-title" style="padding-bottom: 10px; border-bottom: 0.5px solid var(--color-border-tertiary);">Cuộc trò chuyện</div>
+      <div id="conv-list" style="margin-top: 8px;"></div>
+    </div>
+    <div style="display: flex; flex-direction: column;">
+      <div style="border-bottom: 0.5px solid var(--color-border-tertiary); padding-bottom: 8px; margin-bottom: 8px;">
+        <div id="chat-name" style="font-weight: 600; font-size: 13px;">Chọn cuộc trò chuyện</div>
+      </div>
+      <div id="chat-msgs" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; padding: 8px 0;"></div>
+      <div style="display: flex; gap: 6px;">
+        <input class="inp" id="reply-input" style="flex: 1;" type="text" placeholder="Trả lời...">
+        <button class="btn btn-green btn-sm" onclick="sendReply()">Gửi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TẠOHÓA ĐƠN (POS) -->
+<div class="page" id="page-invoice">
+  <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Chi tiết đơn hàng</div></div>
+      <div class="row2">
+        <div class="fg">
+          <label>Tên khách hàng</label>
+          <input class="inp" id="cname" type="text" placeholder="Nhập tên khách">
+        </div>
+        <div class="fg">
+          <label>SĐT khách</label>
+          <input class="inp" type="tel" placeholder="Nhập số điện thoại">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="fg">
+          <label>Loại giá</label>
+          <select class="sel" id="ctype" style="width: 100%;">
+            <option value="le">Lẻ</option>
+            <option value="si">Sỉ</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Ghi chú</label>
+          <input class="inp" type="text" placeholder="Ghi chú đơn hàng">
+        </div>
+      </div>
+      <div style="border-top: 0.5px solid var(--color-border-tertiary); padding-top: 10px; margin-top: 10px;">
+        <div class="card-title" style="margin-bottom: 8px;">Sản phẩm</div>
+        <table>
+          <tr><th>Tên</th><th>SL</th><th>Giá</th><th>Tổng</th><th>Lãi</th><th></th></tr>
+          <tbody id="inv-body"></tbody>
+        </table>
+        <button class="btn btn-blue btn-sm" style="margin-top: 8px;" onclick="addRow()">+ Thêm dòng</button>
+      </div>
+    </div>
+    <div class="card" style="height: fit-content;">
+      <div class="card-title" style="margin-bottom: 10px;">Tính toán</div>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 0.5px solid var(--color-border-tertiary);">
+        <span>Cộng:</span>
+        <strong id="sub">0đ</strong>
+      </div>
+      <div class="row2" style="margin-bottom: 10px;">
+        <div class="fg">
+          <label>Chiết khấu</label>
+          <input class="inp" id="discount" type="number" value="0" onchange="recalc()">
+        </div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--color-border-tertiary); font-weight: 600;">
+        <span>Tổng cộng:</span>
+        <strong id="grand" class="green">0đ</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px;">
+        <span>Lợi nhuận:</span>
+        <strong id="profit" class="green">0đ</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 8px; background: var(--color-green-light); border-radius: 6px; margin-bottom: 10px;">
+        <span>Margin:</span>
+        <strong id="margin" class="green">0%</strong>
+      </div>
+      <button class="btn btn-green" style="width: 100%; margin-bottom: 8px;" onclick="submitInvoice()">✓ Chốt đơn</button>
+      <button class="btn" style="width: 100%;" onclick="go('shipping', document.querySelectorAll('.nav-item')[6])">🚚 Lên đơn vận chuyển</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUẢN LÝ SẢN PHẨM -->
+<div class="page" id="page-products">
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Danh sách sản phẩm</div><button class="btn btn-green btn-sm" onclick="showAddProduct()">+ Thêm sản phẩm</button></div>
+    <div id="add-product-form" style="background: var(--color-bg-secondary); padding: 12px; border-radius: 6px; margin-bottom: 10px; display: none;">
+      <div class="row2">
+        <div class="fg"><label>Tên sản phẩm</label><input class="inp" id="np-name" placeholder="VD: Pin iPhone 15"></div>
+        <div class="fg"><label>Giá vốn</label><input class="inp" id="np-buy" type="number" placeholder="0"></div>
+      </div>
+      <div class="row2">
+        <div class="fg"><label>Giá sỉ</label><input class="inp" id="np-si" type="number" placeholder="0"></div>
+        <div class="fg"><label>Giá lẻ</label><input class="inp" id="np-le" type="number" placeholder="0"></div>
+      </div>
+      <div class="fg"><label>Ảnh</label><input type="file" id="np-img" accept="image/*" onchange="previewImg(this)"></div>
+      <img id="np-preview" style="width: 60px; height: 60px; border-radius: 6px; margin: 8px 0; display: none;">
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-green btn-sm" onclick="addProduct()">Lưu</button>
+        <button class="btn btn-sm" onclick="showAddProduct()">Huỷ</button>
+      </div>
+    </div>
+    <table id="product-table">
+      <tr><th>Ảnh</th><th>Tên</th><th>Vốn</th><th>Sỉ</th><th>Lẻ</th><th>Lãi Sỉ</th><th>Lãi Lẻ</th><th>Tồn</th></tr>
+    </table>
+  </div>
+</div>
+
+<!-- QUẢN LÝ KHÁCH HÀNG -->
+<div class="page" id="page-customers">
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Danh sách khách hàng</div><button class="btn btn-green btn-sm" onclick="showAddCustomer()">+ Thêm khách</button></div>
+    <div id="add-cus-form" style="background: var(--color-bg-secondary); padding: 12px; border-radius: 6px; margin-bottom: 10px; display: none;">
+      <div class="row2">
+        <div class="fg"><label>Tên khách</label><input class="inp" id="nc-name" placeholder="Nhập tên"></div>
+        <div class="fg"><label>SĐT</label><input class="inp" id="nc-phone" type="tel" placeholder="0912345678"></div>
+      </div>
+      <div class="fg"><label>Địa chỉ</label><input class="inp" id="nc-addr" placeholder="Địa chỉ chi tiết"></div>
+      <div class="fg"><label>Loại khách</label><select class="sel" id="nc-type" style="width: 100%;"><option value="si">Sỉ</option><option value="le">Lẻ</option></select></div>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-green btn-sm" onclick="saveCustomer()">Lưu</button>
+        <button class="btn btn-sm" onclick="showAddCustomer()">Huỷ</button>
+      </div>
+    </div>
+    <table id="cus-table">
+      <tr><th>Avatar</th><th>Tên</th><th>SĐT</th><th>Loại</th><th>Lần mua</th><th>Công nợ</th><th>Tổng LN</th></tr>
+    </table>
+  </div>
+</div>
+
+<!-- LỊCH SỬ ĐƠN HÀNG -->
+<div class="page" id="page-orders">
+  <div class="card">
+    <div class="card-hdr"><div class="card-title">Lịch sử đơn hàng</div></div>
+    <table>
+      <tr><th>Mã đơn</th><th>Khách</th><th>Tổng</th><th>Lãi</th><th>Ngày</th><th>TT</th></tr>
+      <tr><td>#ORD001</td><td>Shop Minh Tuấn</td><td>1.100.000đ</td><td>350.000đ</td><td>26/05/2026</td><td><span class="badge bg-green">Đã giao</span></td></tr>
+      <tr><td>#ORD002</td><td>Nguyễn Văn A</td><td>110.000đ</td><td>25.000đ</td><td>26/05/2026</td><td><span class="badge bg-green">Đã giao</span></td></tr>
+      <tr><td>#ORD003</td><td>Cửa hàng 3T</td><td>300.000đ</td><td>72.000đ</td><td>26/05/2026</td><td><span class="badge bg-amber">Chờ lấy</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- VẬN CHUYỂN & LÊN ĐƠN SPX/GHN -->
+<div class="page" id="page-shipping">
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-title">Lên đơn vận chuyển</div>
+      <button class="btn btn-green btn-sm" onclick="toggleShippingForm()">+ Tạo đơn mới</button>
+    </div>
+    
+    <div id="shipping-form" style="background: var(--color-bg-secondary); padding: 12px; border-radius: 6px; margin-bottom: 12px; display: none;">
+      <div style="border-bottom: 0.5px solid var(--color-border-tertiary); padding-bottom: 10px; margin-bottom: 10px;">
+        <strong style="font-size: 13px;">Thông tin người nhận</strong>
+      </div>
+      <div class="row2">
+        <div class="fg"><label>Tên người nhận</label><input class="inp" id="ship-name" placeholder="VD: Nguyễn Văn A"></div>
+        <div class="fg"><label>Số điện thoại</label><input class="inp" id="ship-phone" type="tel" placeholder="0912345678"></div>
+      </div>
+      <div class="fg"><label>Địa chỉ chi tiết</label><input class="inp" id="ship-addr" placeholder="Số nhà, đường phố, phường, quận, tỉnh"></div>
+      
+      <div style="border-bottom: 0.5px solid var(--color-border-tertiary); padding: 10px 0; margin: 10px 0;">
+        <strong style="font-size: 13px;">Thông tin đơn hàng</strong>
+      </div>
+      <div class="row2">
+        <div class="fg"><label>Hãng vận chuyển</label><select class="sel" id="ship-carrier" style="width: 100%;"><option value="spx">SPX Express</option><option value="ghn">Giao Hàng Nhanh (GHN)</option><option value="ghtk">Giao Hàng Tiết Kiệm (GHTK)</option><option value="viettel">Viettel Post</option></select></div>
+        <div class="fg"><label>Tiền COD</label><input class="inp" id="ship-cod" type="number" placeholder="0" value="0"></div>
+      </div>
+      <div class="row2">
+        <div class="fg"><label>Phí ship (VNĐ)</label><input class="inp" id="ship-fee" type="number" placeholder="0" value="0"></div>
+        <div class="fg"><label>Ghi chú</label><input class="inp" id="ship-note" placeholder="VD: Dễ vỡ, để nhẹ tay..."></div>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-green btn-sm" onclick="submitShipping()">✓ Lên đơn</button>
+        <button class="btn btn-sm" onclick="toggleShippingForm()">Huỷ</button>
+      </div>
+    </div>
+
+    <div style="border-bottom: 0.5px solid var(--color-border-tertiary); padding-bottom: 10px; margin-bottom: 10px;">
+      <strong style="font-size: 13px;">Danh sách đơn vận chuyển</strong>
+    </div>
+    <table>
+      <tr><th>Mã vận đơn</th><th>Người nhận</th><th>Địa chỉ</th><th>Hãng</th><th>TT</th><th>COD</th><th></th></tr>
+      <tbody id="shipping-table"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- CÀI ĐẶT -->
+<div class="page" id="page-settings">
+  <div class="card">
+    <div class="card-title" style="margin-bottom: 12px;">⚙️ Cài đặt ứng dụng</div>
+    <div class="fg">
+      <label style="font-weight: 600; margin-bottom: 8px;">📲 Cài đặt ra màn hình chính (PWA)</label>
+      <p style="color: var(--color-text-secondary); font-size: 12px; margin-bottom: 8px;">Cài đặt ứng dụng này vào màn hình nền điện thoại để dùng giống app tải từ store.</p>
+      <button class="btn btn-green" onclick="installPWA()">📥 Cài đặt lên điện thoại</button>
+    </div>
+
+    <div style="border-top: 0.5px solid var(--color-border-tertiary); padding: 12px 0; margin: 12px 0;">
+      <label style="font-weight: 600; margin-bottom: 8px; display: block;">🔗 Chia sẻ app cho nhân viên</label>
+      <p style="color: var(--color-text-secondary); font-size: 12px; margin-bottom: 8px;">Copy đường link dưới đây để chia sẻ cho nhân viên dùng chung.</p>
+      <div style="display: flex; gap: 6px;">
+        <input class="inp" id="share-link" readonly value="">
+        <button class="btn btn-blue btn-sm" onclick="copyShareLink()">📋 Copy</button>
+      </div>
+      <p style="color: var(--color-text-secondary); font-size: 11px; margin-top: 6px;" id="copy-status"></p>
+    </div>
+
+    <div style="border-top: 0.5px solid var(--color-border-tertiary); padding: 12px 0; margin: 12px 0;">
+      <label style="font-weight: 600; margin-bottom: 8px; display: block;">ℹ️ Thông tin ứng dụng</label>
+      <table style="font-size: 12px;">
+        <tr><td style="padding: 4px; border: none;">Phiên bản:</td><td style="padding: 4px; border: none; font-weight: 600;">2.0 Pro - Nâng cấp Vận chuyển</td></tr>
+        <tr><td style="padding: 4px; border: none;">Cập nhật:</td><td style="padding: 4px; border: none;">26/05/2026</td></tr>
+        <tr><td style="padding: 4px; border: none;">Các tính năng:</td><td style="padding: 4px; border: none;">POS, Vận chuyển SPX/GHN, In nhãn dán</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+</div>
+
+<!-- MODAL IN NHÃN DÁN -->
+<div class="modal" id="print-modal">
+  <div class="modal-content">
+    <span class="modal-close" onclick="closePrintModal()">×</span>
+    <div id="shipping-preview" style="font-family: monospace;"></div>
+    <div style="display: flex; gap: 6px; margin-top: 12px;">
+      <button class="btn btn-green btn-sm" onclick="window.print()">🖨️ In</button>
+      <button class="btn btn-sm" onclick="closePrintModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== KHỞI TẠO DỮ LIỆU =====
+let rowIdx = 0, curConv = 0;
+const products = [
+  { name: 'Pin iPhone 15', buy: 200000, si: 280000, le: 320000 },
+  { name: 'Kính iPhone 15', buy: 80000, si: 120000, le: 150000 },
+  { name: 'Vỏ iPhone 15', buy: 150000, si: 220000, le: 280000 }
+];
+
+const convs = [
+  { name: 'Shop Minh Tuấn', av: 'MT', avStyle: '', msgs: [
+    { in: true, text: 'Cho mình 50 cái kính iphone 15 được không?' },
+    { in: true, text: 'Giá sỉ bao nhiêu?' },
+    { in: false, text: 'Kính IP15 sỉ 120.000/cái. 50 cái là 6.000.000đ' }
+  ]},
+  { name: 'Phong Mobile', av: 'PH', avStyle: 'background: var(--color-amber-light); color: var(--color-amber);', msgs: [
+    { in: true, text: 'Còn pin iPhone mấy không?' },
+    { in: false, text: 'Còn pin iPhone 12, 13, 14, 15. Giá sỉ 200k/cái' }
+  ]}
+];
+
+const shippingOrders = [
+  { id: 'SPX-VN-20260526001', receiver: 'Nguyễn Văn A', addr: 'Hà Nội', carrier: 'SPX', status: 'Đã giao', cod: 0 },
+  { id: 'GHN-20260526001', receiver: 'Shop Minh Tuấn', addr: 'TPHCM', carrier: 'GHN', status: 'Đang giao', cod: 1100000 }
+];
+
+// ===== ĐIỀU HƯỚNG =====
+function go(page, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  
+  const titles = {
+    dashboard: '📊 Tổng quan',
+    messenger: '💬 Tin nhắn',
+    invoice: '📄 Tạo hóa đơn',
+    products: '📦 Sản phẩm',
+    customers: '👥 Khách hàng',
+    orders: '📋 Lịch sử đơn',
+    shipping: '🚚 Vận chuyển',
+    settings: '⚙️ Cài đặt'
+  };
+  document.getElementById('ptitle').textContent = titles[page] || page;
+  
+  if (page === 'messenger') initMessenger();
+  if (page === 'shipping') renderShippingList();
+}
+
+// ===== MESSENGER =====
+function initMessenger() {
+  const convList = document.getElementById('conv-list');
+  convList.innerHTML = convs.map((c, i) => 
+    `<div style="padding: 8px; border-radius: 6px; cursor: pointer; margin-bottom: 6px; background: ${i === curConv ? 'var(--color-bg-secondary)' : 'transparent'};" onclick="openConv(${i})">
+      <strong style="font-size: 12px;">${c.name}</strong>
+      <div style="font-size: 11px; color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.msgs[c.msgs.length - 1].text}</div>
+    </div>`
+  ).join('');
+  openConv(0);
+}
+
+function openConv(idx) {
+  curConv = idx;
+  const c = convs[idx];
+  document.getElementById('chat-name').textContent = c.name;
+  const msgs = document.getElementById('chat-msgs');
+  msgs.innerHTML = c.msgs.map(m => 
+    `<div style="padding: 8px 12px; border-radius: 8px; max-width: 80%; ${m.in ? 'background: var(--color-blue-light); color: var(--color-blue); align-self: flex-start;' : 'background: var(--color-green-light); color: var(--color-green-dark); align-self: flex-end; margin-left: auto;'} word-break: break-word;">${m.text}</div>`
+  ).join('');
+}
+
+function sendReply() {
+  const inp = document.getElementById('reply-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  const msgs = document.getElementById('chat-msgs');
+  msgs.innerHTML += `<div style="padding: 8px 12px; border-radius: 8px; background: var(--color-green-light); color: var(--color-green-dark); align-self: flex-end; margin-left: auto; word-break: break-word;">${text}</div>`;
+  convs[curConv].msgs.push({ in: false, text });
+  inp.value = '';
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ===== HÓA ĐƠN (POS) =====
+function addRow() {
+  const tbody = document.getElementById('inv-body');
+  const i = rowIdx++;
+  const opts = products.map((p, j) => `<option value="${j}">${p.name}</option>`).join('');
+  const tr = document.createElement('tr');
+  tr.id = `irow-${i}`;
+  tr.innerHTML = `
+    <td><select onchange="updateRow(${i})" style="width: 100%; padding: 4px; border: 0.5px solid var(--color-border-secondary); border-radius: 4px; background: var(--color-bg-primary); color: var(--color-text-primary); font-size: 11px;"><option value="">-- Chọn --</option>${opts}</select></td>
+    <td><input type="number" min="1" value="1" id="qty-${i}" onchange="updateRow(${i})" style="width: 45px; padding: 4px; border: 0.5px solid var(--color-border-secondary); border-radius: 4px; background: var(--color-bg-primary); color: var(--color-text-primary); font-size: 11px;"></td>
+    <td id="iprice-${i}" style="color: var(--color-text-secondary);">--</td>
+    <td id="itotal-${i};">--</td>
+    <td id="iprofit-${i};">--</td>
+    <td><button class="btn btn-sm" onclick="this.closest('tr').remove(); recalc()" style="padding: 2px 4px;">🗑️</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function updateRow(i) {
+  const sel = document.querySelector(`#irow-${i} select`);
+  const qty = parseInt(document.getElementById(`qty-${i}`).value) || 1;
+  if (sel.value === '') { recalc(); return; }
+  const p = products[parseInt(sel.value)];
+  const ctype = document.getElementById('ctype').value;
+  const price = ctype === 'si' ? p.si : p.le;
+  const profit = price - p.buy;
+  document.getElementById(`iprice-${i}`).textContent = fmt(price);
+  document.getElementById(`itotal-${i}`).textContent = fmt(price * qty);
+  document.getElementById(`iprofit-${i}`).innerHTML = `<span class="profit-pill">+${fmt(profit * qty).replace('đ', '')}</span>`;
+  recalc();
+}
+
+function recalc() {
+  let total = 0, totalProfit = 0;
+  document.querySelectorAll('[id^="itotal-"]').forEach(el => {
+    if (el.textContent !== '--') total += parseInt(el.textContent.replace(/\./g, '').replace('đ', '').replace(',', '')) || 0;
+  });
+  document.querySelectorAll('[id^="iprofit-"]').forEach(el => {
+    const t = el.textContent.replace(/\+|\.|\s/g, '').replace('đ', '').replace(',', '');
+    if (t && t !== '--') totalProfit += parseInt(t) || 0;
+  });
+  const disc = parseInt(document.getElementById('discount').value) || 0;
+  const grand = total - disc;
+  document.getElementById('sub').textContent = fmt(total);
+  document.getElementById('grand').textContent = fmt(grand);
+  document.getElementById('profit').textContent = fmt(totalProfit);
+  document.getElementById('margin').textContent = grand > 0 ? Math.round(totalProfit / grand * 100) + '%' : '0%';
+}
+
+function submitInvoice() {
+  const name = document.getElementById('cname').value || 'Khách lẻ';
+  const grand = document.getElementById('grand').textContent;
+  const profit = document.getElementById('profit').textContent;
+  alert(`✓ Tạo hóa đơn thành công!\n\nKhách: ${name}\nTổng: ${grand}\nLợi nhuận: ${profit}`);
+}
+
+// ===== SẢN PHẨM =====
+function showAddProduct() {
+  const f = document.getElementById('add-product-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function previewImg(input) {
+  const prev = document.getElementById('np-preview');
+  if (input.files && input.files[0]) {
+    const r = new FileReader();
+    r.onload = e => { prev.src = e.target.result; prev.style.display = 'block'; };
+    r.readAsDataURL(input.files[0]);
+  }
+}
+
+function addProduct() {
+  const name = document.getElementById('np-name').value;
+  const buy = parseInt(document.getElementById('np-buy').value) || 0;
+  const si = parseInt(document.getElementById('np-si').value) || 0;
+  const le = parseInt(document.getElementById('np-le').value) || 0;
+  if (!name) return alert('Nhập tên sản phẩm!');
+  const profitSi = si - buy, profitLe = le - buy;
+  const pctSi = buy > 0 ? Math.round(profitSi / buy * 100) : 0;
+  const pctLe = buy > 0 ? Math.round(profitLe / buy * 100) : 0;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><div style="width: 34px; height: 34px; border-radius: 6px; background: var(--color-green-light); display: flex; align-items: center; justify-content: center;">📦</div></td>
+    <td>${name}</td>
+    <td>${fmt(buy)}</td>
+    <td>${fmt(si)}</td>
+    <td>${fmt(le)}</td>
+    <td><span class="profit-pill">+${fmt(profitSi).replace('đ', '')} (${pctSi}%)</span></td>
+    <td><span class="profit-pill">+${fmt(profitLe).replace('đ', '')} (${pctLe}%)</span></td>
+    <td>0</td>
+  `;
+  document.getElementById('product-table').appendChild(tr);
+  products.push({ name, buy, si, le });
+  document.getElementById('add-product-form').style.display = 'none';
+  document.getElementById('np-name').value = '';
+  document.getElementById('np-buy').value = '';
+  document.getElementById('np-si').value = '';
+  document.getElementById('np-le').value = '';
+}
+
+// ===== KHÁCH HÀNG =====
+function showAddCustomer() {
+  const f = document.getElementById('add-cus-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveCustomer() {
+  const name = document.getElementById('nc-name').value;
+  const phone = document.getElementById('nc-phone').value;
+  const addr = document.getElementById('nc-addr').value;
+  const type = document.getElementById('nc-type').value;
+  if (!name) return alert('Nhập tên khách!');
+  const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><div class="avatar">${initials}</div></td>
+    <td style="font-weight: 500;">${name}</td>
+    <td>${phone}</td>
+    <td><span class="badge ${type === 'si' ? 'bg-amber' : 'bg-blue'}">${type === 'si' ? 'Sỉ' : 'Lẻ'}</span></td>
+    <td>0</td>
+    <td>0đ</td>
+    <td style="color: var(--color-green-dark);">0đ</td>
+  `;
+  document.getElementById('cus-table').appendChild(tr);
+  document.getElementById('add-cus-form').style.display = 'none';
+  document.getElementById('nc-name').value = '';
+  document.getElementById('nc-phone').value = '';
+  document.getElementById('nc-addr').value = '';
+}
+
+// ===== VẬN CHUYỂN =====
+function toggleShippingForm() {
+  const f = document.getElementById('shipping-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function submitShipping() {
+  const name = document.getElementById('ship-name').value;
+  const phone = document.getElementById('ship-phone').value;
+  const addr = document.getElementById('ship-addr').value;
+  const carrier = document.getElementById('ship-carrier').value;
+  const cod = parseInt(document.getElementById('ship-cod').value) || 0;
+  const fee = parseInt(document.getElementById('ship-fee').value) || 0;
+  const note = document.getElementById('ship-note').value;
+  
+  if (!name || !phone || !addr) return alert('Điền đầy đủ thông tin người nhận!');
+  
+  const id = carrier.toUpperCase() + '-VN-' + Date.now().toString().slice(-6);
+  const order = { id, receiver: name, addr, carrier, status: 'Chờ lấy', cod, phone, fee, note };
+  shippingOrders.push(order);
+  
+  renderShippingList();
+  toggleShippingForm();
+  
+  // Clear form
+  document.getElementById('ship-name').value = '';
+  document.getElementById('ship-phone').value = '';
+  document.getElementById('ship-addr').value = '';
+  document.getElementById('ship-cod').value = '0';
+  document.getElementById('ship-fee').value = '0';
+  document.getElementById('ship-note').value = '';
+  
+  alert('✓ Lên đơn thành công!\nMã vận đơn: ' + id);
+}
+
+function renderShippingList() {
+  const tbody = document.getElementById('shipping-table');
+  tbody.innerHTML = shippingOrders.map((o, i) => `
+    <tr>
+      <td><strong>${o.id}</strong></td>
+      <td>${o.receiver}</td>
+      <td>${o.addr}</td>
+      <td><span class="badge bg-blue">${o.carrier.toUpperCase()}</span></td>
+      <td><span class="badge ${o.status === 'Đã giao' ? 'bg-green' : o.status === 'Đang giao' ? 'bg-blue' : 'bg-amber'}">${o.status}</span></td>
+      <td>${o.cod > 0 ? fmt(o.cod) : '--'}</td>
+      <td>
+        <button class="btn btn-sm" style="padding: 3px 6px;" onclick="printLabel(${i})">🖨️</button>
+        <button class="btn btn-sm" style="padding: 3px 6px;" onclick="updateStatus(${i})">⟳</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function printLabel(idx) {
+  const o = shippingOrders[idx];
+  const barcode = o.id.replace(/-/g, '');
+  const label = `
+    <div class="shipping-label">
+      <div class="label-header">🚚 ${o.carrier.toUpperCase()}</div>
+      <div class="label-sender">
+        <strong>NGƯỜI GỬI:</strong><br>
+        KIM Store Mobile<br>
+        SĐT: 0912345678<br>
+        Địa chỉ: Hà Nội, Việt Nam
+      </div>
+      <div class="label-receiver">
+        <strong>NGƯỜI NHẬN:</strong><br>
+        ${o.receiver}<br>
+        ${o.phone}<br>
+        ${o.addr}
+      </div>
+      <div class="label-barcode">${barcode}</div>
+      ${o.cod > 0 ? `<div class="label-cod">
+        THU HỘ: <div class="label-cod-value">${fmt(o.cod)}</div>
+      </div>` : ''}
+      <div class="label-status">
+        <strong>Trạng thái:</strong> ${o.status}<br>
+        <strong>Phí ship:</strong> ${fmt(o.fee)}<br>
+        <strong>Ghi chú:</strong> ${o.note || 'Không'}
+      </div>
+    </div>
+  `;
+  document.getElementById('shipping-preview').innerHTML = label;
+  document.getElementById('print-modal').classList.add('active');
+}
+
+function closePrintModal() {
+  document.getElementById('print-modal').classList.remove('active');
+}
+
+function updateStatus(idx) {
+  const statuses = ['Chờ lấy', 'Đang giao', 'Đã giao'];
+  const current = shippingOrders[idx].status;
+  const nextIdx = (statuses.indexOf(current) + 1) % statuses.length;
+  shippingOrders[idx].status = statuses[nextIdx];
+  renderShippingList();
+}
+
+// ===== CÀI ĐẶT & PWA =====
+function installPWA() {
+  if (window.deferredPrompt) {
+    window.deferredPrompt.prompt();
+  } else {
+    alert('📱 Hướng dẫn cài đặt:\n\n✓ iPhone (iOS): Mở Safari → Bấm nút Chia sẻ → "Add to Home Screen"\n✓ Android: Mở Chrome → Bấm menu (⋮) → "Install app"');
+  }
+}
+
+function copyShareLink() {
+  const link = window.location.href;
+  document.getElementById('share-link').value = link;
+  navigator.clipboard.writeText(link).then(() => {
+    document.getElementById('copy-status').textContent = '✓ Đã copy link!';
+    setTimeout(() => { document.getElementById('copy-status').textContent = ''; }, 2000);
+  });
+}
+
+// ===== HELPER =====
+function fmt(n) { return Math.round(n).toLocaleString('vi-VN') + 'đ'; }
+
+// ===== KHỞI ĐỘNG =====
+document.getElementById('share-link').value = window.location.href;
+
+// Service Worker cho PWA
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('data:application/javascript,const CACHE_NAME="linhkienpro-v1";self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(["/"]))));self.addEventListener("fetch",e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));').catch(() => {});
+}
+
+// Install prompt listener
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window.deferredPrompt = e;
+});
+
+addRow();
+initMessenger();
+renderShippingList();
+</script>
+
+</body>
+</html>
