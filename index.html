@@ -1939,27 +1939,17 @@
                         lại cách hiển thị cho phù hợp màn hình nhỏ. Không có bất kỳ state/hàm dữ liệu mới nào
                         ở đây ngoài 2 biến điều hướng thuần UI (mobileTab, mobileMenuSection) đã khai báo phía trên. */}
                     <div className="flex md:hidden flex-col h-full w-full bg-[var(--c-bg)]">
-                        {/* Header trắng, chữ/icon xanh công nghệ */}
-                        <header className="flex h-14 items-center justify-between bg-white border-b border-gray-100 px-4 shrink-0 shadow-sm">
-                            <span className="flex items-center gap-2 font-bold text-[var(--c-primary)] text-base">
-                                <i className="fa-solid fa-microchip"></i>
+                        {/* Header trắng, logo lớn nổi bật kiểu Facebook */}
+                        <header className="flex h-16 items-center bg-white border-b border-gray-100 px-4 shrink-0 shadow-sm">
+                            <span className="flex items-center gap-2 font-bold tracking-tight text-[var(--c-primary)] text-3xl">
+                                <i className="fa-solid fa-microchip text-2xl"></i>
                                 LinhKien<span className="text-[var(--c-primary-dark)]">PRO</span>
                             </span>
-                            <div className="flex items-center gap-4 text-[var(--c-primary)]">
-                                <button onClick={() => { setMobileTab("products"); setMobileMenuSection(null); }} className="hover:text-[var(--c-primary-dark)]">
-                                    <i className="fa-solid fa-magnifying-glass text-base"></i>
-                                </button>
-                                <button onClick={() => { setMobileTab("dashboard"); setMobileMenuSection(null); }} className="relative hover:text-[var(--c-primary-dark)]">
-                                    <i className="fa-solid fa-bell text-base"></i>
-                                    {products.filter(p => p.stock < 5).length > 0 && (
-                                        <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[var(--c-danger)]"></span>
-                                    )}
-                                </button>
-                            </div>
                         </header>
 
+
                         {/* Nội dung chính theo Tab đang chọn */}
-                        <main className="flex-1 overflow-y-auto pb-20">
+                        <main className="flex-1 overflow-y-auto pb-24">
                             {mobileTab === "dashboard" && (
                                 <div className="p-3">
                                     <DashboardTab 
@@ -2134,8 +2124,8 @@
                             )}
                         </main>
 
-                        {/* Thanh 5 Tab cố định dưới đáy màn hình */}
-                        <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch h-16 bg-white border-t border-gray-100 md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+                        {/* Thanh 5 Tab cố định dưới đáy màn hình — kiểu Facebook: cao rãi, icon to, chữ đậm khi active */}
+                        <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch h-20 bg-white border-t border-gray-100 md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
                             {[
                                 { key: "dashboard", icon: "fa-chart-pie", label: "Tổng quan" },
                                 { key: "products", icon: "fa-boxes-stacked", label: "Kho hàng" },
@@ -2146,9 +2136,9 @@
                                 <button 
                                     key={t.key}
                                     onClick={() => { setMobileTab(t.key); if (t.key !== "menu") setMobileMenuSection(null); }}
-                                    className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-semibold transition-colors ${mobileTab === t.key ? 'text-[var(--c-primary)]' : 'text-gray-400'}`}
+                                    className={`flex-1 flex flex-col items-center justify-center gap-1.5 text-xs transition-colors ${mobileTab === t.key ? 'text-[var(--c-primary)] font-bold' : 'text-gray-400 font-medium'}`}
                                 >
-                                    <i className={`fa-solid ${t.icon} text-base`}></i>
+                                    <i className={`fa-solid ${t.icon} text-[26px]`}></i>
                                     {t.label}
                                 </button>
                             ))}
