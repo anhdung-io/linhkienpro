@@ -889,6 +889,45 @@
             const [showTrashModal, setShowTrashModal] = useState(false);
             const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
+            // ============ ĐIỀU HƯỚNG RIÊNG CHO GIAO DIỆN MOBILE (< 768px) ============
+            // Tách biệt hoàn toàn khỏi "activeTab" (biến điều khiển sidebar/nội dung bản Desktop, GIỮ NGUYÊN
+            // không đổi) để tuyệt đối không ảnh hưởng tới luồng dữ liệu/logic gốc của bản Desktop.
+            const [mobileTab, setMobileTab] = useState("dashboard"); // 'dashboard'|'products'|'sales'|'customers'|'menu'
+            const [mobileMenuSection, setMobileMenuSection] = useState(null); // null | 'configs'|'messenger'|'shipping'|'history'
+
+            // "Sao lưu dữ liệu" (Menu di động) — chỉ ĐỌC dữ liệu hiện có và xuất ra 1 file .json để tải về máy,
+            // KHÔNG đụng chạm gì tới luồng ghi/đồng bộ Supabase hiện tại.
+            // Cầu nối điều hướng: bên trong <MessengerTab> có nút "Mở ở POS" gọi setActiveTab("pos") — ở bản
+            // Desktop việc này tự chuyển tab bình thường, nhưng bản Mobile dùng "mobileTab" riêng nên cần
+            // ánh xạ thêm sang mobileTab để nút đó cũng điều hướng đúng khi Messenger AI được mở từ Menu di động.
+            const setActiveTabFromMobileMenu = (tab) => {
+                setActiveTab(tab);
+                if (tab === "pos") { setMobileTab("sales"); setMobileMenuSection(null); }
+                else { setMobileTab(tab); setMobileMenuSection(null); }
+            };
+
+            const handleBackupData = () => {
+                try {
+                    const backupPayload = {
+                        exportedAt: new Date().toISOString(),
+                        shop: currentUser?.tai_khoan || currentUser?.username || "",
+                        products, customers, orders, configs
+                    };
+                    const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `linhkienpro-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast("Đã tải file sao lưu dữ liệu về máy!", "success");
+                } catch (e) {
+                    showToast("Lỗi khi tạo file sao lưu: " + e.message, "error");
+                }
+            };
+
             // CUSTOM DIALOG MODALS STATES
             const [confirmModal, setConfirmModal] = useState({ show: false, title: "", message: "", onConfirm: null });
             const [promptModal, setPromptModal] = useState({ show: false, title: "", message: "", defaultValue: "", onConfirm: null, value: "" });
@@ -1657,6 +1696,9 @@
                         </div>
                     )}
 
+                    {/* ============ GIAO DIỆN DESKTOP (>= 768px) — GIỮ NGUYÊN XI 100% kết cấu/logic gốc,
+                        chỉ bọc thêm "hidden md:flex" để ẩn hẳn trên di động, thay bằng khối Mobile riêng bên dưới ============ */}
+                    <div className="hidden md:flex flex-1 overflow-hidden">
                     {/* Lớp phủ mờ nền khi mở sidebar trên di động */}
                     {sidebarOpen && (
                         <div
@@ -1889,6 +1931,230 @@
                             )}
                         </main>
                     </div>
+                    </div>
+                    {/* ============ KẾT THÚC GIAO DIỆN DESKTOP ============ */}
+
+                    {/* ============ GIAO DIỆN MOBILE (< 768px) — Header trắng + 5 Tab đáy cố định ============
+                        Dùng lại NGUYÊN VẸN các Tab component & hàm xử lý dữ liệu/Supabase ở trên, chỉ sắp xếp
+                        lại cách hiển thị cho phù hợp màn hình nhỏ. Không có bất kỳ state/hàm dữ liệu mới nào
+                        ở đây ngoài 2 biến điều hướng thuần UI (mobileTab, mobileMenuSection) đã khai báo phía trên. */}
+                    <div className="flex md:hidden flex-col h-full w-full bg-[var(--c-bg)]">
+                        {/* Header trắng, chữ/icon xanh công nghệ */}
+                        <header className="flex h-14 items-center justify-between bg-white border-b border-gray-100 px-4 shrink-0 shadow-sm">
+                            <span className="flex items-center gap-2 font-bold text-[var(--c-primary)] text-base">
+                                <i className="fa-solid fa-microchip"></i>
+                                LinhKien<span className="text-[var(--c-primary-dark)]">PRO</span>
+                            </span>
+                            <div className="flex items-center gap-4 text-[var(--c-primary)]">
+                                <button onClick={() => { setMobileTab("products"); setMobileMenuSection(null); }} className="hover:text-[var(--c-primary-dark)]">
+                                    <i className="fa-solid fa-magnifying-glass text-base"></i>
+                                </button>
+                                <button onClick={() => { setMobileTab("dashboard"); setMobileMenuSection(null); }} className="relative hover:text-[var(--c-primary-dark)]">
+                                    <i className="fa-solid fa-bell text-base"></i>
+                                    {products.filter(p => p.stock < 5).length > 0 && (
+                                        <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[var(--c-danger)]"></span>
+                                    )}
+                                </button>
+                            </div>
+                        </header>
+
+                        {/* Nội dung chính theo Tab đang chọn */}
+                        <main className="flex-1 overflow-y-auto pb-20">
+                            {mobileTab === "dashboard" && (
+                                <div className="p-3">
+                                    <DashboardTab 
+                                        products={products} 
+                                        setProducts={setProducts}
+                                        customers={customers} 
+                                        setCustomers={setCustomers}
+                                        orders={orders} 
+                                        setOrders={setOrders}
+                                        shippings={shippings}
+                                        configs={configs}
+                                        showToast={showToast}
+                                        askConfirm={askConfirm}
+                                        resetDatabase={resetDatabase}
+                                        setShowTrashModal={setShowTrashModal}
+                                        trashBin={trashBin}
+                                        dbUpsertProduct={dbUpsertProduct}
+                                        dbInsertAiLog={dbInsertAiLog}
+                                        aiManagerLogs={aiManagerLogs}
+                                        currentUser={currentUser}
+                                    />
+                                </div>
+                            )}
+
+                            {mobileTab === "products" && (
+                                <div className="p-3">
+                                    <ProductsTab 
+                                        products={products} 
+                                        setProducts={setProducts}
+                                        configs={configs}
+                                        showToast={showToast}
+                                        askConfirm={askConfirm}
+                                        deleteToTrash={deleteToTrash}
+                                        dbUpsertProduct={dbUpsertProduct}
+                                        dbDeleteProduct={dbDeleteProduct}
+                                        categories={categories}
+                                        setCategories={setCategories}
+                                        dbUpsertCategory={dbUpsertCategory}
+                                        dbDeleteCategory={dbDeleteCategory}
+                                    />
+                                </div>
+                            )}
+
+                            {mobileTab === "customers" && (
+                                <div className="p-3">
+                                    <CustomersTab 
+                                        customers={customers} 
+                                        setCustomers={setCustomers}
+                                        orders={orders}
+                                        messages={messages}
+                                        configs={configs}
+                                        showToast={showToast}
+                                        askConfirm={askConfirm}
+                                        askPrompt={askPrompt}
+                                        openCopyModal={openCopyModal}
+                                        deleteToTrash={deleteToTrash}
+                                    />
+                                </div>
+                            )}
+
+                            {mobileTab === "sales" && (
+                                <MobileSalesTab 
+                                    products={products} 
+                                    setProducts={setProducts}
+                                    customers={customers} 
+                                    setCustomers={setCustomers}
+                                    orders={orders} 
+                                    setOrders={setOrders}
+                                    shippings={shippings}
+                                    setShippings={setShippings}
+                                    configs={configs}
+                                    showToast={showToast}
+                                    askConfirm={askConfirm}
+                                    deleteToTrash={deleteToTrash}
+                                    aiOrderDraft={aiOrderDraft}
+                                    setAiOrderDraft={setAiOrderDraft}
+                                    dbInsertOrder={dbInsertOrder}
+                                    dbUpsertProduct={dbUpsertProduct}
+                                    dbDeleteOrder={dbDeleteOrder}
+                                />
+                            )}
+
+                            {mobileTab === "menu" && mobileMenuSection === null && (
+                                <MobileMenuGrid 
+                                    onSelect={setMobileMenuSection}
+                                    onTrash={() => setShowTrashModal(true)}
+                                    onBackup={handleBackupData}
+                                    onPwa={() => setShowPwaModal(true)}
+                                    onShare={handleCopyLink}
+                                    onLogout={handleLogout}
+                                    currentUser={currentUser}
+                                />
+                            )}
+
+                            {mobileTab === "menu" && mobileMenuSection !== null && (
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-2.5 bg-white px-3.5 py-3 border-b border-gray-100 sticky top-0 z-10">
+                                        <button onClick={() => setMobileMenuSection(null)} className="text-[var(--c-primary)] h-7 w-7 flex items-center justify-center rounded-lg bg-[#EAF2FA]">
+                                            <i className="fa-solid fa-arrow-left"></i>
+                                        </button>
+                                        <span className="font-bold text-[var(--c-ink)]">
+                                            {mobileMenuSection === "configs" && "⚙️ Cấu hình kết nối API"}
+                                            {mobileMenuSection === "messenger" && "💬 Trợ lý Messenger AI"}
+                                            {mobileMenuSection === "shipping" && "🚚 Quản lý Vận đơn"}
+                                            {mobileMenuSection === "history" && "📝 Lịch sử hoạt động"}
+                                        </span>
+                                    </div>
+                                    <div className="p-3">
+                                        {mobileMenuSection === "configs" && (
+                                            <ConfigsTab 
+                                                configs={configs} 
+                                                setConfigs={setConfigs} 
+                                                dbSaveConfigs={dbSaveConfigs}
+                                                showToast={showToast}
+                                                askConfirm={askConfirm}
+                                                resetDatabase={resetDatabase}
+                                                setShowTrashModal={setShowTrashModal}
+                                                trashBin={trashBin}
+                                            />
+                                        )}
+                                        {mobileMenuSection === "messenger" && (
+                                            <MessengerTab 
+                                                messages={messages} 
+                                                setMessages={setMessages}
+                                                products={products}
+                                                setProducts={setProducts}
+                                                customers={customers}
+                                                setCustomers={setCustomers}
+                                                orders={orders}
+                                                setOrders={setOrders}
+                                                configs={configs}
+                                                setConfigs={setConfigs}
+                                                showToast={showToast}
+                                                setActiveTab={setActiveTabFromMobileMenu}
+                                                setAiOrderDraft={setAiOrderDraft}
+                                                dbInsertMessage={dbInsertMessage}
+                                                dbInsertOrder={dbInsertOrder}
+                                                dbUpsertProduct={dbUpsertProduct}
+                                            />
+                                        )}
+                                        {mobileMenuSection === "shipping" && (
+                                            <ShippingTab 
+                                                shippings={shippings}
+                                                setShippings={setShippings}
+                                                orders={orders}
+                                                setOrders={setOrders}
+                                                configs={configs}
+                                                showToast={showToast}
+                                                askConfirm={askConfirm}
+                                                deleteToTrash={deleteToTrash}
+                                                dbDeleteOrder={dbDeleteOrder}
+                                            />
+                                        )}
+                                        {mobileMenuSection === "history" && (
+                                            <OrdersTab 
+                                                orders={orders}
+                                                setOrders={setOrders}
+                                                shippings={shippings}
+                                                setShippings={setShippings}
+                                                products={products}
+                                                setProducts={setProducts}
+                                                customers={customers}
+                                                showToast={showToast}
+                                                askConfirm={askConfirm}
+                                                deleteToTrash={deleteToTrash}
+                                                dbDeleteOrder={dbDeleteOrder}
+                                                dbUpsertProduct={dbUpsertProduct}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </main>
+
+                        {/* Thanh 5 Tab cố định dưới đáy màn hình */}
+                        <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch h-16 bg-white border-t border-gray-100 md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+                            {[
+                                { key: "dashboard", icon: "fa-chart-pie", label: "Tổng quan" },
+                                { key: "products", icon: "fa-boxes-stacked", label: "Kho hàng" },
+                                { key: "sales", icon: "fa-cash-register", label: "Bán hàng" },
+                                { key: "customers", icon: "fa-users", label: "Khách hàng" },
+                                { key: "menu", icon: "fa-bars", label: "Menu" },
+                            ].map(t => (
+                                <button 
+                                    key={t.key}
+                                    onClick={() => { setMobileTab(t.key); if (t.key !== "menu") setMobileMenuSection(null); }}
+                                    className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-semibold transition-colors ${mobileTab === t.key ? 'text-[var(--c-primary)]' : 'text-gray-400'}`}
+                                >
+                                    <i className={`fa-solid ${t.icon} text-base`}></i>
+                                    {t.label}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+                    {/* ============ KẾT THÚC GIAO DIỆN MOBILE ============ */}
 
                     {/* Ghim MH chính */}
                     {showPwaModal && (
@@ -1925,6 +2191,338 @@
                             </div>
                         </div>
                     )}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // GIAO DIỆN MOBILE — TAB "BÁN HÀNG" (Form tạo đơn nhanh + Dòng thời gian đơn hàng kiểu Feed)
+        // Tái sử dụng NGUYÊN VẸN <POSTab> và các hàm dữ liệu/Supabase đã có (deleteToTrash, setShippings,
+        // dbDeleteOrder, dbUpsertProduct...) — component này CHỈ sắp xếp lại cách hiển thị, không tạo ra
+        // luồng nghiệp vụ mới nào ngoài việc gọi lại đúng những hàm đã tồn tại theo đúng cách "Đơn hàng đã
+        // bán" và "Quản lý Vận đơn" đang làm.
+        // ==========================================
+        function MobileSalesTab({ products, setProducts, customers, setCustomers, orders, setOrders, shippings, setShippings, configs, showToast, askConfirm, deleteToTrash, aiOrderDraft, setAiOrderDraft, dbInsertOrder, dbUpsertProduct, dbDeleteOrder }) {
+            const [showForm, setShowForm] = useState(true);
+            const [openMenuId, setOpenMenuId] = useState(null);
+            const [viewingOrder, setViewingOrder] = useState(null);
+            const [statusSheetOrder, setStatusSheetOrder] = useState(null);
+            const [printOrder, setPrintOrder] = useState(null);
+
+            // Hủy 1 đơn: hoàn kho + đưa vào Thùng Rác + xóa khỏi Supabase — GIỐNG HỆT logic ở "Đơn hàng đã bán"
+            const cancelOneOrder = (target) => {
+                deleteToTrash("Đơn hàng", target);
+                const restoredProducts = products.map(p => {
+                    const orderItem = target.items.find(it => it.productId === p.id);
+                    if (orderItem) return { ...p, stock: p.stock + orderItem.quantity };
+                    return p;
+                });
+                setProducts(restoredProducts);
+                restoredProducts.forEach(p => {
+                    const orderItem = target.items.find(it => it.productId === p.id);
+                    if (orderItem) dbUpsertProduct(p);
+                });
+                setOrders(prev => prev.filter(o => o.id !== target.id));
+                setShippings(prev => prev.filter(s => s.orderId !== target.id));
+                dbDeleteOrder(target.id);
+            };
+
+            const handleDeleteOrder = (order) => {
+                askConfirm(
+                    "XÁC NHẬN HỦY ĐƠN HÀNG",
+                    `Bạn có thật sự muốn hủy đơn hàng ${order.id} này? Các mặt hàng sẽ được cộng trả lại vào kho hàng. Bản ghi đơn hàng này sẽ được đưa vào Thùng Rác.`,
+                    () => {
+                        cancelOneOrder(order);
+                        showToast(`Đã hủy hoàn tất đơn hàng ${order.id} & chuyển vào Thùng Rác!`, "success");
+                    }
+                );
+            };
+
+            // Cập nhật trạng thái giao hàng — TÁI SỬ DỤNG NGUYÊN VẸN "setShippings" (App() đã map ngược lại
+            // vào orders.trangThai + tự gọi dbUpsertOrder), đúng y hệt cách "Quản lý Vận đơn" đang làm.
+            const handleUpdateOrderStatus = (order, nextLabel) => {
+                setShippings(prev => prev.map(s => s.orderId === order.id ? { ...s, status: nextLabel } : s));
+                showToast(`Cập nhật trạng thái: ${nextLabel}`);
+                setStatusSheetOrder(null);
+            };
+
+            const sortedOrders = [...orders].reverse();
+
+            return (
+                <div className="p-3 space-y-3">
+                    {/* Form tạo đơn nhanh (POS) — tái sử dụng nguyên vẹn component gốc */}
+                    <div className="bg-white rounded-2xl border border-[var(--c-line)] overflow-hidden">
+                        <button onClick={() => setShowForm(v => !v)} className="w-full flex items-center justify-between px-3.5 py-3 bg-[#EAF2FA]">
+                            <span className="font-bold text-[var(--c-primary-dark)] text-xxs uppercase">⚡ Tạo đơn nhanh (POS)</span>
+                            <i className={`fa-solid fa-chevron-${showForm ? 'up' : 'down'} text-[var(--c-primary)]`}></i>
+                        </button>
+                        {showForm && (
+                            <div className="p-2.5">
+                                <POSTab 
+                                    products={products} 
+                                    setProducts={setProducts}
+                                    customers={customers} 
+                                    setCustomers={setCustomers}
+                                    orders={orders} 
+                                    setOrders={setOrders} 
+                                    shippings={shippings}
+                                    setShippings={setShippings}
+                                    configs={configs}
+                                    showToast={showToast}
+                                    aiOrderDraft={aiOrderDraft}
+                                    setAiOrderDraft={setAiOrderDraft}
+                                    dbInsertOrder={dbInsertOrder}
+                                    dbUpsertProduct={dbUpsertProduct}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Dòng thời gian đơn hàng kiểu Feed — mỗi đơn là 1 thẻ độc lập */}
+                    <div className="space-y-2.5">
+                        <h3 className="font-bold text-[var(--c-ink)] text-xxs uppercase px-1">📝 Dòng thời gian đơn hàng</h3>
+                        {sortedOrders.length === 0 && (
+                            <div className="bg-white rounded-2xl border border-[var(--c-line)] p-6 text-center text-[var(--c-muted)] text-xxs">Chưa có đơn hàng nào.</div>
+                        )}
+                        {sortedOrders.map(o => (
+                            <div key={o.id} className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 space-y-2.5 relative text-xxs">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-bold text-[var(--c-ink)]">{o.customerName}</p>
+                                        <p className="text-[var(--c-muted)]">{o.id} • {o.date}</p>
+                                    </div>
+                                    <div className="relative">
+                                        <button onClick={() => setOpenMenuId(openMenuId === o.id ? null : o.id)} className="text-[var(--c-muted)] h-7 w-7 flex items-center justify-center rounded-lg hover:bg-[#F1F5F9]">
+                                            <i className="fa-solid fa-ellipsis-vertical"></i>
+                                        </button>
+                                        {openMenuId === o.id && (
+                                            <div className="absolute right-0 top-8 z-20 bg-white border border-[var(--c-line)] rounded-xl shadow-lg overflow-hidden w-36">
+                                                <button onClick={() => { setViewingOrder(o); setOpenMenuId(null); }} className="w-full text-left px-3 py-2.5 hover:bg-[#F1F5F9]">👁️ Xem chi tiết</button>
+                                                <button onClick={() => { handleDeleteOrder(o); setOpenMenuId(null); }} className="w-full text-left px-3 py-2.5 hover:bg-[#FDEDED] text-[var(--c-danger)]">🗑️ Xóa đơn</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {o.isShipping && (
+                                    <span className="inline-block bg-[#FBF0E1] text-[var(--c-warning)] rounded-xl font-bold px-2 py-0.5">
+                                        🚚 {STATUS_TO_SHIP_LABEL[o.trangThai] || "Chờ lấy hàng"}
+                                    </span>
+                                )}
+
+                                <div className="border-t border-dashed border-[var(--c-line)] pt-2 space-y-1">
+                                    {o.items.map(it => (
+                                        <div key={it.productId} className="flex justify-between">
+                                            <span className="text-[var(--c-ink)]">{it.name} <span className="text-[var(--c-muted)]">x{it.quantity}</span></span>
+                                            <span className="font-semibold">{(it.price * it.quantity).toLocaleString()}đ</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex justify-between items-center border-t border-[var(--c-line)] pt-2">
+                                    <span className="text-[var(--c-muted)]">Lợi nhuận: <b className="text-[var(--c-accent)]">+{o.profit.toLocaleString()}đ</b></span>
+                                    <span className="font-bold text-[var(--c-primary)] text-sm">{o.finalTotal.toLocaleString()}đ</span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                    <button 
+                                        onClick={() => o.isShipping ? setStatusSheetOrder(o) : showToast("Đơn bán tại quầy đã hoàn tất, không cần cập nhật trạng thái ship.")}
+                                        className="bg-[#EAF2FA] hover:bg-[#DCEAF7] text-[var(--c-primary)] font-bold py-2.5 rounded-xl"
+                                    >
+                                        🔄 Cập nhật trạng thái
+                                    </button>
+                                    <button onClick={() => setPrintOrder(o)} className="bg-[var(--c-primary-dark)] hover:bg-[#072B4A] text-white font-bold py-2.5 rounded-xl">
+                                        🖨️ In đơn
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Modal xem chi tiết đơn */}
+                    {viewingOrder && (
+                        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50 p-0 sm:p-4" onClick={() => setViewingOrder(null)}>
+                            <div className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 space-y-2.5 text-xxs max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <span className="font-bold text-sm">Chi tiết đơn {viewingOrder.id}</span>
+                                    <button onClick={() => setViewingOrder(null)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <p><strong>Khách:</strong> {viewingOrder.customerName}</p>
+                                <p><strong>Ngày:</strong> {viewingOrder.date}</p>
+                                <p><strong>Thanh toán:</strong> {viewingOrder.paymentMethod}</p>
+                                {viewingOrder.isShipping && (
+                                    <div className="bg-[#FBF0E1]/50 border border-[#F0DCB8] rounded-xl p-2.5 space-y-1">
+                                        <p><strong>Người nhận:</strong> {viewingOrder.receiverName} - {viewingOrder.receiverPhone}</p>
+                                        <p><strong>Địa chỉ:</strong> {viewingOrder.receiverAddress}</p>
+                                        <p><strong>COD:</strong> {(viewingOrder.codAmount || 0).toLocaleString()}đ</p>
+                                        <p className="font-mono">{viewingOrder.trackingCode}</p>
+                                    </div>
+                                )}
+                                <div className="border-t pt-2 space-y-1">
+                                    {viewingOrder.items.map(it => (
+                                        <div key={it.productId} className="flex justify-between">
+                                            <span>{it.name} x{it.quantity}</span>
+                                            <span className="font-semibold">{(it.price * it.quantity).toLocaleString()}đ</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="text-right font-bold text-[var(--c-primary)] text-sm border-t pt-2">Tổng: {viewingOrder.finalTotal.toLocaleString()}đ</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Bottom sheet cập nhật trạng thái */}
+                    {statusSheetOrder && (
+                        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50" onClick={() => setStatusSheetOrder(null)}>
+                            <div className="w-full bg-white rounded-t-2xl p-4 space-y-2 text-xxs" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b pb-2 mb-1">
+                                    <span className="font-bold text-sm">Cập nhật trạng thái — {statusSheetOrder.id}</span>
+                                    <button onClick={() => setStatusSheetOrder(null)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark"></i></button>
+                                </div>
+                                {["Chờ lấy hàng", "Đang giao hàng", "Đã giao hàng", "Hủy/Hoàn trả"].map(label => (
+                                    <button 
+                                        key={label}
+                                        onClick={() => handleUpdateOrderStatus(statusSheetOrder, label)}
+                                        className={`w-full text-left px-3.5 py-3 rounded-xl font-semibold ${(STATUS_TO_SHIP_LABEL[statusSheetOrder.trangThai] || "Chờ lấy hàng") === label ? 'bg-[var(--c-primary-dark)] text-white' : 'bg-[#F1F5F9] text-[var(--c-ink)]'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Xem trước phiếu in */}
+                    {printOrder && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-65 p-4 overflow-y-auto">
+                            <div className="w-full max-w-sm bg-white rounded-xl p-4 shadow-2xl space-y-3 text-xxs">
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <span className="font-bold">🖨️ Xem trước phiếu in</span>
+                                    <button onClick={() => setPrintOrder(null)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark text-sm"></i></button>
+                                </div>
+                                <div className="border border-[var(--c-line)] rounded-xl p-3 bg-[var(--c-bg)] space-y-2.5 text-sm" id="invoice-print-mobile">
+                                    <div className="text-center border-b pb-2">
+                                        <h4 className="font-bold text-xs">LINHKIENPRO</h4>
+                                        <p>ĐC: {configs.shopAddress}</p>
+                                        <p>SĐT: {configs.shopPhone}</p>
+                                        <h5 className="font-bold mt-1.5 uppercase text-sm">HÓA ĐƠN GIAO DỊCH</h5>
+                                        <p className="text-[var(--c-muted)]">Mã: {printOrder.id} | Ngày: {printOrder.date}</p>
+                                    </div>
+                                    <div>
+                                        <p><strong>Khách nhận:</strong> {printOrder.customerName}</p>
+                                        <p><strong>Hình thức:</strong> {printOrder.paymentMethod}</p>
+                                    </div>
+                                    <table className="w-full border-y py-2">
+                                        <thead>
+                                            <tr className="font-bold">
+                                                <th>Linh kiện</th>
+                                                <th className="text-center">SL</th>
+                                                <th className="text-right">T.Tiền</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {printOrder.items.map(it => (
+                                                <tr key={it.productId} className="border-b border-dashed">
+                                                    <td>{it.name}</td>
+                                                    <td className="text-center">{it.quantity}</td>
+                                                    <td className="text-right">{(it.price * it.quantity).toLocaleString()}đ</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    <div className="text-right space-y-1">
+                                        <p>Cộng tiền: {printOrder.total.toLocaleString()}đ</p>
+                                        <p>Giảm giá: -{printOrder.discount.toLocaleString()}đ</p>
+                                        <p className="font-bold text-[var(--c-ink)]">Tổng thanh toán: {printOrder.finalTotal.toLocaleString()}đ</p>
+                                    </div>
+                                </div>
+                                {printOrder.isShipping && (
+                                    <div className="border-2 border-[var(--c-primary-dark)] rounded-xl p-2.5 bg-[#FBF0E1]/50 space-y-1.5 text-sm">
+                                        <div className="flex justify-between items-center border-b border-[var(--c-primary-dark)] pb-0.5">
+                                            <span className="font-bold">PHẦN THÔNG TIN SHIP</span>
+                                            <span className="bg-[var(--c-primary-dark)] text-white font-bold px-2 rounded-xl text-xs">{printOrder.carrier}</span>
+                                        </div>
+                                        <p><strong>Người nhận:</strong> {printOrder.receiverName} - {printOrder.receiverPhone}</p>
+                                        <p className="line-clamp-1"><strong>ĐC giao:</strong> {printOrder.receiverAddress}</p>
+                                        <p className="font-bold text-[var(--c-danger)]">COD cần thu: {(printOrder.codAmount || 0).toLocaleString()}đ</p>
+                                        <p className="font-mono text-center bg-white border border-[var(--c-line)] mt-1.5">{printOrder.trackingCode}</p>
+                                    </div>
+                                )}
+                                <div className="flex gap-2">
+                                    <button onClick={() => window.print()} className="flex-1 rounded-xl py-2.5 bg-[var(--c-primary-dark)] hover:bg-[#072B4A] text-white font-bold text-center">In hóa đơn</button>
+                                    <button onClick={() => setPrintOrder(null)} className="flex-1 rounded-xl py-2.5 bg-[var(--c-primary)] hover:bg-[var(--c-primary-dark)] text-white font-bold text-center">Đóng</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // GIAO DIỆN MOBILE — TAB "MENU" (gom toàn bộ phần còn lại: Cấu hình API, Messenger AI, Vận đơn,
+        // Lịch sử hoạt động, Thùng rác, Sao lưu dữ liệu, Đăng xuất)
+        // ==========================================
+        function MobileMenuGrid({ onSelect, onTrash, onBackup, onPwa, onShare, onLogout, currentUser }) {
+            const items = [
+                { key: "configs", icon: "fa-gears", label: "Cấu hình kết nối API", color: "text-[var(--c-primary)]" },
+                { key: "messenger", icon: "fa-message", label: "Trợ lý Messenger AI", color: "text-[var(--c-ai)]" },
+                { key: "shipping", icon: "fa-truck-fast", label: "Quản lý Vận đơn", color: "text-[var(--c-warning)]" },
+                { key: "history", icon: "fa-clock-rotate-left", label: "Lịch sử hoạt động", color: "text-[var(--c-primary)]" },
+            ];
+            return (
+                <div className="p-3 space-y-3">
+                    <div className="bg-white rounded-2xl border border-[var(--c-line)] divide-y divide-[var(--c-line)] overflow-hidden">
+                        {items.map(it => (
+                            <button key={it.key} onClick={() => onSelect(it.key)} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[#F1F5F9] text-left">
+                                <span className="flex items-center gap-3 font-semibold text-[var(--c-ink)] text-xxs">
+                                    <i className={`fa-solid ${it.icon} ${it.color} text-base w-5 text-center`}></i>
+                                    {it.label}
+                                </span>
+                                <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-[var(--c-line)] divide-y divide-[var(--c-line)] overflow-hidden">
+                        <button onClick={onTrash} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[#F1F5F9] text-left">
+                            <span className="flex items-center gap-3 font-semibold text-[var(--c-ink)] text-xxs">
+                                <i className="fa-solid fa-trash-can text-[var(--c-danger)] text-base w-5 text-center"></i>
+                                Thùng rác hệ thống
+                            </span>
+                            <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                        </button>
+                        <button onClick={onBackup} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[#F1F5F9] text-left">
+                            <span className="flex items-center gap-3 font-semibold text-[var(--c-ink)] text-xxs">
+                                <i className="fa-solid fa-cloud-arrow-down text-[var(--c-accent)] text-base w-5 text-center"></i>
+                                Sao lưu dữ liệu
+                            </span>
+                            <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                        </button>
+                        <button onClick={onShare} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[#F1F5F9] text-left">
+                            <span className="flex items-center gap-3 font-semibold text-[var(--c-ink)] text-xxs">
+                                <i className="fa-solid fa-share-nodes text-[var(--c-primary)] text-base w-5 text-center"></i>
+                                Chia sẻ App
+                            </span>
+                            <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                        </button>
+                        <button onClick={onPwa} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[#F1F5F9] text-left">
+                            <span className="flex items-center gap-3 font-semibold text-[var(--c-ink)] text-xxs">
+                                <i className="fa-solid fa-mobile-screen-button text-[var(--c-primary)] text-base w-5 text-center"></i>
+                                Ghim ra Màn Hình
+                            </span>
+                            <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 flex items-center gap-2.5">
+                        <i className="fa-solid fa-circle-user text-[var(--c-muted)] text-lg"></i>
+                        <p className="font-bold text-[var(--c-ink)] text-xxs truncate">{currentUser?.fullName || currentUser?.full_name || currentUser?.username}</p>
+                    </div>
+
+                    <button onClick={onLogout} className="w-full bg-[var(--c-danger)] hover:bg-[#B23A3A] text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2">
+                        <i className="fa-solid fa-right-from-bracket"></i> Đăng xuất
+                    </button>
                 </div>
             );
         }
