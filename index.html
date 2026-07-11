@@ -894,6 +894,9 @@
             // không đổi) để tuyệt đối không ảnh hưởng tới luồng dữ liệu/logic gốc của bản Desktop.
             const [mobileTab, setMobileTab] = useState("dashboard"); // 'dashboard'|'products'|'sales'|'customers'|'menu'
             const [mobileMenuSection, setMobileMenuSection] = useState(null); // null | 'configs'|'messenger'|'shipping'|'history'
+            const [showMobileSearch, setShowMobileSearch] = useState(false);
+            const [mobileSearchQuery, setMobileSearchQuery] = useState("");
+            const [showMobileNotif, setShowMobileNotif] = useState(false);
 
             // "Sao lưu dữ liệu" (Menu di động) — chỉ ĐỌC dữ liệu hiện có và xuất ra 1 file .json để tải về máy,
             // KHÔNG đụng chạm gì tới luồng ghi/đồng bộ Supabase hiện tại.
@@ -1939,12 +1942,23 @@
                         lại cách hiển thị cho phù hợp màn hình nhỏ. Không có bất kỳ state/hàm dữ liệu mới nào
                         ở đây ngoài 2 biến điều hướng thuần UI (mobileTab, mobileMenuSection) đã khai báo phía trên. */}
                     <div className="flex md:hidden flex-col h-full w-full bg-[var(--c-bg)]">
-                        {/* Header trắng, logo lớn nổi bật kiểu Facebook */}
-                        <header className="flex h-16 items-center bg-white border-b border-gray-100 px-4 shrink-0 shadow-sm">
+                        {/* Header trắng, logo lớn nổi bật kiểu Facebook + icon tìm kiếm/thông báo có chức năng thật */}
+                        <header className="flex h-16 items-center justify-between bg-white border-b border-gray-100 px-4 shrink-0 shadow-sm">
                             <span className="flex items-center gap-2 font-bold tracking-tight text-[var(--c-primary)] text-3xl">
                                 <i className="fa-solid fa-microchip text-2xl"></i>
                                 LinhKien<span className="text-[var(--c-primary-dark)]">PRO</span>
                             </span>
+                            <div className="flex items-center gap-4 text-[var(--c-primary)]">
+                                <button onClick={() => setShowMobileSearch(true)} className="hover:text-[var(--c-primary-dark)]">
+                                    <i className="fa-solid fa-magnifying-glass text-xl"></i>
+                                </button>
+                                <button onClick={() => setShowMobileNotif(true)} className="relative hover:text-[var(--c-primary-dark)]">
+                                    <i className="fa-solid fa-bell text-xl"></i>
+                                    {(products.filter(p => p.stock < 5).length > 0 || customers.filter(c => c.debt > 0).length > 0) && (
+                                        <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[var(--c-danger)] border-2 border-white"></span>
+                                    )}
+                                </button>
+                            </div>
                         </header>
 
 
@@ -1970,13 +1984,14 @@
                                         dbInsertAiLog={dbInsertAiLog}
                                         aiManagerLogs={aiManagerLogs}
                                         currentUser={currentUser}
+                                        isMobile={true}
                                     />
                                 </div>
                             )}
 
                             {mobileTab === "products" && (
                                 <div className="p-3">
-                                    <ProductsTab 
+                                    <MobileProductsTab 
                                         products={products} 
                                         setProducts={setProducts}
                                         configs={configs}
@@ -1986,25 +2001,19 @@
                                         dbUpsertProduct={dbUpsertProduct}
                                         dbDeleteProduct={dbDeleteProduct}
                                         categories={categories}
-                                        setCategories={setCategories}
-                                        dbUpsertCategory={dbUpsertCategory}
-                                        dbDeleteCategory={dbDeleteCategory}
                                     />
                                 </div>
                             )}
 
                             {mobileTab === "customers" && (
                                 <div className="p-3">
-                                    <CustomersTab 
+                                    <MobileCustomersTab 
                                         customers={customers} 
                                         setCustomers={setCustomers}
                                         orders={orders}
-                                        messages={messages}
                                         configs={configs}
                                         showToast={showToast}
                                         askConfirm={askConfirm}
-                                        askPrompt={askPrompt}
-                                        openCopyModal={openCopyModal}
                                         deleteToTrash={deleteToTrash}
                                     />
                                 </div>
@@ -2143,6 +2152,127 @@
                                 </button>
                             ))}
                         </nav>
+
+                        {/* ============ MODAL TÌM KIẾM NHANH (icon kính lúp header) — tìm trực tiếp trong
+                            products/customers/orders đã có sẵn, bấm vào kết quả điều hướng đúng Tab ============ */}
+                        {showMobileSearch && (
+                            <div className="fixed inset-0 z-50 bg-white flex flex-col">
+                                <div className="flex items-center gap-2.5 px-4 h-16 border-b border-gray-100 shrink-0">
+                                    <button onClick={() => { setShowMobileSearch(false); setMobileSearchQuery(""); }} className="text-[var(--c-primary)]">
+                                        <i className="fa-solid fa-arrow-left text-lg"></i>
+                                    </button>
+                                    <input 
+                                        autoFocus
+                                        type="text" 
+                                        value={mobileSearchQuery} 
+                                        onChange={(e) => setMobileSearchQuery(e.target.value)} 
+                                        placeholder="Tìm linh kiện, khách hàng, đơn hàng..." 
+                                        className="flex-1 bg-[#F1F5F9] rounded-xl px-3.5 py-2.5 text-sm focus:outline-none"
+                                    />
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                                    {mobileSearchQuery.trim() === "" && (
+                                        <p className="text-center text-[var(--c-muted)] text-xs py-10">Nhập từ khóa để tìm linh kiện, khách hàng hoặc đơn hàng.</p>
+                                    )}
+                                    {mobileSearchQuery.trim() !== "" && (() => {
+                                        const q = mobileSearchQuery.trim().toLowerCase();
+                                        const matchedProducts = products.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)).slice(0, 8);
+                                        const matchedCustomers = customers.filter(c => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q)).slice(0, 8);
+                                        const matchedOrders = orders.filter(o => o.id.toLowerCase().includes(q) || o.customerName.toLowerCase().includes(q)).slice(0, 8);
+                                        const nothing = matchedProducts.length === 0 && matchedCustomers.length === 0 && matchedOrders.length === 0;
+                                        return (
+                                            <>
+                                                {nothing && <p className="text-center text-[var(--c-muted)] text-xs py-10">Không tìm thấy kết quả nào khớp "{mobileSearchQuery}".</p>}
+                                                {matchedProducts.length > 0 && (
+                                                    <div>
+                                                        <p className="text-[var(--c-muted)] font-bold text-xs uppercase mb-1.5 px-1">Linh kiện</p>
+                                                        <div className="bg-white rounded-2xl border border-[var(--c-line)] divide-y divide-[var(--c-line)] overflow-hidden">
+                                                            {matchedProducts.map(p => (
+                                                                <button key={p.id} onClick={() => { setShowMobileSearch(false); setMobileSearchQuery(""); setMobileTab("products"); }} className="w-full flex justify-between items-center px-3.5 py-3 text-left hover:bg-[#F1F5F9]">
+                                                                    <span>
+                                                                        <p className="font-bold text-[var(--c-ink)] text-xs">{p.name}</p>
+                                                                        <p className="text-[var(--c-muted)] text-xs">{p.id} · Tồn {p.stock}</p>
+                                                                    </span>
+                                                                    <span className="font-bold text-[var(--c-primary)] text-xs">{p.sellPrice.toLocaleString()}đ</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {matchedCustomers.length > 0 && (
+                                                    <div>
+                                                        <p className="text-[var(--c-muted)] font-bold text-xs uppercase mb-1.5 px-1">Khách hàng</p>
+                                                        <div className="bg-white rounded-2xl border border-[var(--c-line)] divide-y divide-[var(--c-line)] overflow-hidden">
+                                                            {matchedCustomers.map(c => (
+                                                                <button key={c.id} onClick={() => { setShowMobileSearch(false); setMobileSearchQuery(""); setMobileTab("customers"); }} className="w-full flex justify-between items-center px-3.5 py-3 text-left hover:bg-[#F1F5F9]">
+                                                                    <span>
+                                                                        <p className="font-bold text-[var(--c-ink)] text-xs">{c.name}</p>
+                                                                        <p className="text-[var(--c-muted)] text-xs">{c.phone}</p>
+                                                                    </span>
+                                                                    {c.debt > 0 && <span className="font-bold text-[var(--c-danger)] text-xs">Nợ {c.debt.toLocaleString()}đ</span>}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {matchedOrders.length > 0 && (
+                                                    <div>
+                                                        <p className="text-[var(--c-muted)] font-bold text-xs uppercase mb-1.5 px-1">Đơn hàng</p>
+                                                        <div className="bg-white rounded-2xl border border-[var(--c-line)] divide-y divide-[var(--c-line)] overflow-hidden">
+                                                            {matchedOrders.map(o => (
+                                                                <button key={o.id} onClick={() => { setShowMobileSearch(false); setMobileSearchQuery(""); setMobileTab("sales"); }} className="w-full flex justify-between items-center px-3.5 py-3 text-left hover:bg-[#F1F5F9]">
+                                                                    <span>
+                                                                        <p className="font-bold text-[var(--c-ink)] text-xs">{o.id}</p>
+                                                                        <p className="text-[var(--c-muted)] text-xs">{o.customerName}</p>
+                                                                    </span>
+                                                                    <span className="font-bold text-[var(--c-primary)] text-xs">{o.finalTotal.toLocaleString()}đ</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ============ MODAL THÔNG BÁO (icon chuông header) — cảnh báo tồn kho thấp + công
+                            nợ khách hàng, đọc trực tiếp từ products/customers hiện có ============ */}
+                        {showMobileNotif && (
+                            <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-end" onClick={() => setShowMobileNotif(false)}>
+                                <div className="w-full bg-white rounded-t-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center px-4 py-3.5 border-b border-gray-100">
+                                        <span className="font-bold text-[var(--c-ink)]">🔔 Thông báo</span>
+                                        <button onClick={() => setShowMobileNotif(false)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                                        {products.filter(p => p.stock < 5).length === 0 && customers.filter(c => c.debt > 0).length === 0 && (
+                                            <p className="text-center text-[var(--c-muted)] text-xs py-10">Không có thông báo nào.</p>
+                                        )}
+                                        {products.filter(p => p.stock < 5).map(p => (
+                                            <button key={p.id} onClick={() => { setShowMobileNotif(false); setMobileTab("products"); }} className="w-full flex items-center gap-2.5 bg-[#FDEDED] border border-[#F6D2D2] rounded-xl p-3 text-left">
+                                                <span className="h-9 w-9 shrink-0 rounded-full bg-white flex items-center justify-center text-[var(--c-danger)]"><i className="fa-solid fa-triangle-exclamation"></i></span>
+                                                <div className="text-xs">
+                                                    <p className="font-bold text-[var(--c-ink)]">{p.name} sắp hết hàng</p>
+                                                    <p className="text-[var(--c-muted)]">Còn {p.stock} {p.unit} — SKU {p.id}</p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                        {customers.filter(c => c.debt > 0).map(c => (
+                                            <button key={c.id} onClick={() => { setShowMobileNotif(false); setMobileTab("customers"); }} className="w-full flex items-center gap-2.5 bg-[#FBF0E1] border border-[#F0DCB8] rounded-xl p-3 text-left">
+                                                <span className="h-9 w-9 shrink-0 rounded-full bg-white flex items-center justify-center text-[var(--c-warning)]"><i className="fa-solid fa-hand-holding-dollar"></i></span>
+                                                <div className="text-xs">
+                                                    <p className="font-bold text-[var(--c-ink)]">{c.name} đang nợ {c.debt.toLocaleString()}đ</p>
+                                                    <p className="text-[var(--c-muted)]">{c.phone}</p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     {/* ============ KẾT THÚC GIAO DIỆN MOBILE ============ */}
 
@@ -2518,11 +2648,438 @@
         }
 
         // ==========================================
+        // GIAO DIỆN MOBILE — TAB "KHO HÀNG" (thẻ + pill danh mục kiểu mockup)
+        // TÁI SỬ DỤNG NGUYÊN VẸN cách lưu (setProducts + dbUpsertProduct/dbDeleteProduct + deleteToTrash),
+        // đúng y hệt định dạng dữ liệu mà <ProductsTab> gốc đang dùng (id viết hoa, giữ dbId khi sửa...).
+        // Component này CHỈ là 1 lớp hiển thị khác, không tạo ra quy tắc lưu trữ mới nào.
+        // ==========================================
+        function MobileProductsTab({ products, setProducts, configs, showToast, askConfirm, deleteToTrash, dbUpsertProduct, dbDeleteProduct, categories }) {
+            const [search, setSearch] = useState("");
+            const [filterCat, setFilterCat] = useState("Tất cả");
+            const [showLowStockAll, setShowLowStockAll] = useState(false);
+            const [formOpen, setFormOpen] = useState(false);
+            const [editingProduct, setEditingProduct] = useState(null);
+            const [openCardMenuId, setOpenCardMenuId] = useState(null);
+
+            // Form state
+            const [id, setId] = useState("");
+            const [name, setName] = useState("");
+            const [category, setCategory] = useState(() => (categories[0] && categories[0].name) || "Khác");
+            const [costPrice, setCostPrice] = useState(0);
+            const [sellPrice, setSellPrice] = useState(0);
+            const [stock, setStock] = useState(0);
+            const [unit, setUnit] = useState("Cái");
+
+            const resetForm = () => {
+                setEditingProduct(null);
+                setId(""); setName(""); setCategory((categories[0] && categories[0].name) || "Khác");
+                setCostPrice(0); setSellPrice(0); setStock(0); setUnit("Cái");
+            };
+
+            const filtered = products.filter(p => {
+                const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase());
+                const matchCat = filterCat === "Tất cả" || p.category === filterCat;
+                return matchSearch && matchCat;
+            });
+            const lowStockList = products.filter(p => p.stock < 5);
+
+            const openAddForm = () => { resetForm(); setFormOpen(true); };
+            const openEditForm = (p) => {
+                setEditingProduct(p);
+                setId(p.id); setName(p.name); setCategory(p.category);
+                setCostPrice(p.costPrice); setSellPrice(p.sellPrice); setStock(p.stock); setUnit(p.unit);
+                setFormOpen(true);
+                setOpenCardMenuId(null);
+            };
+
+            // Lưu linh kiện — GIỐNG HỆT logic handleSave() ở <ProductsTab> gốc (không đổi 1 quy tắc nào)
+            const handleSave = (e) => {
+                e.preventDefault();
+                if (!id || !name || costPrice <= 0 || sellPrice <= 0) {
+                    showToast("Vui lòng nhập đầy đủ giá và thông tin linh kiện!", "error");
+                    return;
+                }
+                const updated = {
+                    id: id.trim().toUpperCase(),
+                    name: name.trim(),
+                    category,
+                    costPrice: Number(costPrice),
+                    sellPrice: Number(sellPrice),
+                    stock: Number(stock),
+                    unit,
+                    dbId: editingProduct ? editingProduct.dbId : undefined
+                };
+                if (editingProduct) {
+                    setProducts(prev => prev.map(p => p.id === editingProduct.id ? updated : p));
+                    dbUpsertProduct(updated);
+                    showToast(`Đã lưu thay đổi linh kiện: ${name}`);
+                } else {
+                    if (products.some(p => p.id === updated.id)) {
+                        showToast("Mã SKU này đã tồn tại trong hệ thống!", "error");
+                        return;
+                    }
+                    setProducts(prev => [...prev, updated]);
+                    dbUpsertProduct(updated);
+                    showToast(`Đã thêm linh kiện: ${name}`);
+                }
+                resetForm();
+                setFormOpen(false);
+            };
+
+            // Xóa linh kiện — GIỐNG HỆT logic handleDelete() ở <ProductsTab> gốc
+            const handleDelete = (prodId) => {
+                const target = products.find(p => p.id === prodId);
+                setOpenCardMenuId(null);
+                askConfirm(
+                    "XÁC NHẬN XÓA",
+                    `Bạn có chắc chắn muốn xóa linh kiện mã [${prodId}] khỏi kho? Sản phẩm này sẽ được đưa vào Thùng Rác để khôi phục khi cần.`,
+                    () => {
+                        if (target) deleteToTrash("Sản phẩm", target);
+                        setProducts(prev => prev.filter(p => p.id !== prodId));
+                        if (target && target.dbId) dbDeleteProduct(target.dbId);
+                        showToast("Đã xóa linh kiện (Chuyển vào Thùng Rác)!");
+                    }
+                );
+            };
+
+            return (
+                <div className="space-y-3 pb-16">
+                    <h2 className="font-bold text-[var(--c-ink)] text-base px-0.5">Quản lý kho hàng</h2>
+
+                    {/* Ô tìm kiếm */}
+                    <div className="relative">
+                        <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--c-muted)]"></i>
+                        <input 
+                            type="text" 
+                            value={search} 
+                            onChange={(e) => setSearch(e.target.value)} 
+                            placeholder="Tìm kiếm linh kiện, mã, tên..." 
+                            className="w-full bg-white border border-[var(--c-line)] rounded-2xl pl-10 pr-3.5 py-3 text-xs shadow-sm focus:outline-none"
+                        />
+                    </div>
+
+                    {/* Pill danh mục */}
+                    <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+                        {["Tất cả", ...categories.map(c => c.name)].map(cat => (
+                            <button 
+                                key={cat}
+                                onClick={() => setFilterCat(cat)}
+                                className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap ${filterCat === cat ? 'bg-[var(--c-primary)] text-white' : 'bg-white border border-[var(--c-line)] text-[var(--c-muted)]'}`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Tồn kho thấp */}
+                    {lowStockList.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-[var(--c-danger)] text-xxs uppercase">⚠️ Tồn kho thấp</span>
+                                <button onClick={() => setShowLowStockAll(v => !v)} className="text-[var(--c-primary)] font-bold text-xs">
+                                    {showLowStockAll ? "Thu gọn" : "Xem tất cả"}
+                                </button>
+                            </div>
+                            <div className="space-y-1.5">
+                                {(showLowStockAll ? lowStockList : lowStockList.slice(0, 3)).map(p => (
+                                    <div key={p.id} className="flex items-center gap-2.5">
+                                        <span className="h-9 w-9 shrink-0 rounded-xl bg-[#FDEDED] flex items-center justify-center text-[var(--c-danger)]"><i className="fa-solid fa-microchip"></i></span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-[var(--c-ink)] text-xs truncate">{p.name}</p>
+                                            <p className="text-[var(--c-muted)] text-xs">SKU: {p.id}</p>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <p className="font-bold text-[var(--c-danger)] text-xs">Tồn: {p.stock}</p>
+                                            <p className="text-[var(--c-muted)] text-xs">Mức tối thiểu: 5</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Danh sách linh kiện */}
+                    <div className="space-y-2">
+                        <h3 className="font-bold text-[var(--c-ink)] text-xxs uppercase px-1">Danh sách linh kiện</h3>
+                        {filtered.length === 0 && (
+                            <div className="bg-white rounded-2xl border border-[var(--c-line)] p-6 text-center text-[var(--c-muted)] text-xxs">Không tìm thấy linh kiện nào.</div>
+                        )}
+                        {filtered.map(p => (
+                            <div key={p.id} className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 flex items-center gap-2.5 relative">
+                                <span className="h-11 w-11 shrink-0 rounded-xl bg-[#EAF2FA] flex items-center justify-center text-[var(--c-primary)] text-lg"><i className="fa-solid fa-microchip"></i></span>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-[var(--c-ink)] text-xs truncate">{p.name}</p>
+                                    <p className="text-[var(--c-muted)] text-xs">SL: {p.stock} {p.unit} • Giá vốn: {p.costPrice.toLocaleString()}đ</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <p className="font-bold text-[var(--c-primary)] text-sm">{p.sellPrice.toLocaleString()}đ</p>
+                                </div>
+                                <div className="relative shrink-0">
+                                    <button onClick={() => setOpenCardMenuId(openCardMenuId === p.id ? null : p.id)} className="h-8 w-8 flex items-center justify-center text-[var(--c-muted)]">
+                                        <i className="fa-solid fa-ellipsis-vertical"></i>
+                                    </button>
+                                    {openCardMenuId === p.id && (
+                                        <div className="absolute right-0 top-8 z-20 bg-white border border-[var(--c-line)] rounded-xl shadow-lg overflow-hidden w-32 text-xs">
+                                            <button onClick={() => openEditForm(p)} className="w-full text-left px-3 py-2.5 hover:bg-[#F1F5F9]">✏️ Sửa</button>
+                                            <button onClick={() => handleDelete(p.id)} className="w-full text-left px-3 py-2.5 hover:bg-[#FDEDED] text-[var(--c-danger)]">🗑️ Xóa</button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Nút tròn nổi (+) thêm linh kiện mới */}
+                    <button 
+                        onClick={openAddForm}
+                        className="fixed bottom-24 right-4 z-30 h-14 w-14 rounded-full bg-[var(--c-primary)] hover:bg-[var(--c-primary-dark)] text-white text-2xl shadow-lg flex items-center justify-center"
+                    >
+                        <i className="fa-solid fa-plus"></i>
+                    </button>
+
+                    {/* Bottom sheet Thêm/Sửa linh kiện */}
+                    {formOpen && (
+                        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50" onClick={() => { setFormOpen(false); resetForm(); }}>
+                            <form onSubmit={handleSave} className="w-full bg-white rounded-t-2xl p-4 space-y-2.5 max-h-[88vh] overflow-y-auto text-xxs" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <span className="font-bold text-sm">{editingProduct ? "✏️ Sửa linh kiện" : "➕ Thêm linh kiện mới"}</span>
+                                    <button type="button" onClick={() => { setFormOpen(false); resetForm(); }} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Mã SKU *</label>
+                                        <input type="text" value={id} onChange={(e) => setId(e.target.value)} disabled={!!editingProduct} placeholder="VD: SP001" className="w-full border rounded-xl p-2.5 font-bold disabled:bg-[#F1F5F9]" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Danh mục</label>
+                                        <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border rounded-xl p-2.5">
+                                            {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-[var(--c-muted)] mb-1">Tên hiển thị *</label>
+                                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ví dụ: Màn hình iPhone 11 Pro" className="w-full border rounded-xl p-2.5 font-bold" required />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Giá vốn (đ)</label>
+                                        <input type="number" value={costPrice} onChange={(e) => setCostPrice(Number(e.target.value))} onFocus={(e) => e.target.select()} className="w-full border rounded-xl p-2.5 font-bold" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Giá bán (đ)</label>
+                                        <input type="number" value={sellPrice} onChange={(e) => setSellPrice(Number(e.target.value))} onFocus={(e) => e.target.select()} className="w-full border rounded-xl p-2.5 font-bold text-[var(--c-primary)]" required />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Số lượng tồn</label>
+                                        <input type="number" value={stock} onChange={(e) => setStock(Number(e.target.value))} onFocus={(e) => e.target.select()} className="w-full border rounded-xl p-2.5 font-bold text-[var(--c-danger)]" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Đơn vị tính</label>
+                                        <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full border rounded-xl p-2.5" />
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full bg-[var(--c-primary-dark)] hover:bg-[#072B4A] text-white font-bold py-3 rounded-xl">
+                                    {editingProduct ? "💾 Lưu thay đổi" : "➕ Thêm vào kho hàng"}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // GIAO DIỆN MOBILE — TAB "KHÁCH HÀNG" (thẻ kèm avatar màu kiểu mockup)
+        // TÁI SỬ DỤNG NGUYÊN VẸN cách lưu (setCustomers giống hệt <CustomersTab> gốc, "Tổng mua" chỉ là
+        // số liệu tính toán từ orders sẵn có, không tạo bảng/dữ liệu mới nào).
+        // ==========================================
+        function MobileCustomersTab({ customers, setCustomers, orders, configs, showToast, askConfirm, deleteToTrash }) {
+            const [search, setSearch] = useState("");
+            const [formOpen, setFormOpen] = useState(false);
+            const [editingCust, setEditingCust] = useState(null);
+            const [openCardMenuId, setOpenCardMenuId] = useState(null);
+
+            const [name, setName] = useState("");
+            const [phone, setPhone] = useState("");
+            const [address, setAddress] = useState("");
+            const [debt, setDebt] = useState(0);
+            const [notes, setNotes] = useState("");
+
+            const avatarColors = ["#3B82F6", "#EF4444", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899"];
+            const colorFor = (id) => avatarColors[Math.abs([...id].reduce((a, c) => a + c.charCodeAt(0), 0)) % avatarColors.length];
+
+            const resetForm = () => {
+                setEditingCust(null);
+                setName(""); setPhone(""); setAddress(""); setDebt(0); setNotes("");
+            };
+
+            const filtered = customers.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search));
+
+            // Tổng mua = tổng finalTotal các đơn "Thành công" của khách này — chỉ ĐỌC từ orders sẵn có
+            const totalSpentOf = (cust) => orders.filter(o => o.customerId === cust.id && o.status === "Thành công").reduce((sum, o) => sum + o.finalTotal, 0);
+
+            const openAddForm = () => { resetForm(); setFormOpen(true); };
+            const openEditForm = (c) => {
+                setEditingCust(c);
+                setName(c.name); setPhone(c.phone); setAddress(c.address); setDebt(c.debt); setNotes(c.notes);
+                setFormOpen(true);
+                setOpenCardMenuId(null);
+            };
+
+            // Lưu khách hàng — GIỐNG HỆT logic handleSave() ở <CustomersTab> gốc
+            const handleSave = (e) => {
+                e.preventDefault();
+                if (!name || !phone) {
+                    showToast("Điền đầy đủ tên và sđt!", "error");
+                    return;
+                }
+                const updated = {
+                    id: editingCust ? editingCust.id : "KH" + (1001 + customers.length),
+                    name: name.trim(),
+                    phone: phone.trim(),
+                    address: address.trim(),
+                    debt: Number(debt),
+                    notes: notes.trim()
+                };
+                if (editingCust) {
+                    setCustomers(prev => prev.map(c => c.id === editingCust.id ? updated : c));
+                    showToast("Đã lưu chỉnh sửa đối tác!");
+                } else {
+                    setCustomers(prev => [...prev, updated]);
+                    showToast("Đã thêm khách hàng mới thành công!");
+                }
+                resetForm();
+                setFormOpen(false);
+            };
+
+            // Xóa khách hàng — GIỐNG HỆT logic handleDelete() ở <CustomersTab> gốc
+            const handleDelete = (id) => {
+                const target = customers.find(c => c.id === id);
+                setOpenCardMenuId(null);
+                askConfirm(
+                    "XÁC NHẬN XÓA KHÁCH HÀNG",
+                    "Bạn có thật sự muốn xóa hồ sơ khách hàng này? Hồ sơ sẽ được chuyển vào Thùng Rác để có thể khôi phục.",
+                    () => {
+                        if (target) deleteToTrash("Khách hàng", target);
+                        setCustomers(prev => prev.filter(c => c.id !== id));
+                        showToast("Đã xóa hồ sơ khách (Chuyển vào Thùng Rác)!");
+                    }
+                );
+            };
+
+            return (
+                <div className="space-y-3 pb-16">
+                    <h2 className="font-bold text-[var(--c-ink)] text-base px-0.5">Danh sách khách hàng</h2>
+
+                    <div className="relative">
+                        <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--c-muted)]"></i>
+                        <input 
+                            type="text" 
+                            value={search} 
+                            onChange={(e) => setSearch(e.target.value)} 
+                            placeholder="Tìm tên, SĐT, mã khách..." 
+                            className="w-full bg-white border border-[var(--c-line)] rounded-2xl pl-10 pr-3.5 py-3 text-xs shadow-sm focus:outline-none"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        {filtered.length === 0 && (
+                            <div className="bg-white rounded-2xl border border-[var(--c-line)] p-6 text-center text-[var(--c-muted)] text-xxs">Không tìm thấy khách hàng nào.</div>
+                        )}
+                        {filtered.map(c => {
+                            const spent = totalSpentOf(c);
+                            return (
+                                <div key={c.id} className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 flex items-center gap-2.5 relative">
+                                    <span className="h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: colorFor(c.id) }}>
+                                        {c.name.trim().charAt(0).toUpperCase()}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-[var(--c-ink)] text-xs truncate">{c.name}</p>
+                                        <p className="text-[var(--c-muted)] text-xs">{c.phone}</p>
+                                        <p className="text-[var(--c-muted)] text-xs">Tổng mua: {spent.toLocaleString()}đ</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <p className="text-[var(--c-muted)] text-xs">Công nợ</p>
+                                        <p className={`font-bold text-xs ${c.debt > 0 ? 'text-[var(--c-danger)]' : 'text-[var(--c-ink)]'}`}>{c.debt.toLocaleString()}đ</p>
+                                    </div>
+                                    <div className="relative shrink-0">
+                                        <button onClick={() => setOpenCardMenuId(openCardMenuId === c.id ? null : c.id)} className="h-8 w-8 flex items-center justify-center text-[var(--c-muted)]">
+                                            <i className="fa-solid fa-ellipsis-vertical"></i>
+                                        </button>
+                                        {openCardMenuId === c.id && (
+                                            <div className="absolute right-0 top-8 z-20 bg-white border border-[var(--c-line)] rounded-xl shadow-lg overflow-hidden w-32 text-xs">
+                                                <button onClick={() => openEditForm(c)} className="w-full text-left px-3 py-2.5 hover:bg-[#F1F5F9]">✏️ Sửa</button>
+                                                <button onClick={() => handleDelete(c.id)} className="w-full text-left px-3 py-2.5 hover:bg-[#FDEDED] text-[var(--c-danger)]">🗑️ Xóa</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Nút tròn nổi (+) thêm khách hàng mới */}
+                    <button 
+                        onClick={openAddForm}
+                        className="fixed bottom-24 right-4 z-30 h-14 w-14 rounded-full bg-[var(--c-primary)] hover:bg-[var(--c-primary-dark)] text-white text-2xl shadow-lg flex items-center justify-center"
+                    >
+                        <i className="fa-solid fa-plus"></i>
+                    </button>
+
+                    {/* Bottom sheet Thêm/Sửa khách hàng */}
+                    {formOpen && (
+                        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50" onClick={() => { setFormOpen(false); resetForm(); }}>
+                            <form onSubmit={handleSave} className="w-full bg-white rounded-t-2xl p-4 space-y-2.5 max-h-[88vh] overflow-y-auto text-xxs" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <span className="font-bold text-sm">{editingCust ? "✏️ Sửa hồ sơ khách hàng" : "➕ Thêm đối tác khách hàng"}</span>
+                                    <button type="button" onClick={() => { setFormOpen(false); resetForm(); }} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <div>
+                                    <label className="block text-[var(--c-muted)] mb-1">Họ tên đối tác *</label>
+                                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full border rounded-xl p-2.5 font-bold" required />
+                                </div>
+                                <div>
+                                    <label className="block text-[var(--c-muted)] mb-1">Số điện thoại *</label>
+                                    <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border rounded-xl p-2.5 font-bold" required />
+                                </div>
+                                <div>
+                                    <label className="block text-[var(--c-muted)] mb-1">Địa chỉ</label>
+                                    <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full border rounded-xl p-2.5" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Dư nợ ban đầu (đ)</label>
+                                        <input type="number" value={debt} onChange={(e) => setDebt(Number(e.target.value))} onFocus={(e) => e.target.select()} className="w-full border rounded-xl p-2.5 font-bold text-[var(--c-danger)]" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Ghi chú</label>
+                                        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full border rounded-xl p-2.5" />
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full bg-[var(--c-primary-dark)] hover:bg-[#072B4A] text-white font-bold py-3 rounded-xl">
+                                    {editingCust ? "💾 Lưu thay đổi" : "➕ Lưu hồ sơ đối tác"}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ==========================================
         // TAB 1: DASHBOARD (TỔNG QUAN & AI APP MANAGER)
         // ==========================================
-        function DashboardTab({ products, setProducts, customers, setCustomers, orders, setOrders, shippings, configs, showToast, askConfirm, resetDatabase, setShowTrashModal, trashBin, dbUpsertProduct, dbInsertAiLog, aiManagerLogs, currentUser }) {
+        function DashboardTab({ products, setProducts, customers, setCustomers, orders, setOrders, shippings, configs, showToast, askConfirm, resetDatabase, setShowTrashModal, trashBin, dbUpsertProduct, dbInsertAiLog, aiManagerLogs, currentUser, isMobile = false }) {
             const [aiAdvice, setAiAdvice] = useState(() => getLocalStorage("lk_ai_advice", "Chưa có lời khuyên tài chính nào từ trợ lý AI. Vui lòng cấu hình Gemini API Key và bấm 'Yêu cầu AI phân tích' phía dưới để tiến hành rà soát."));
             const [loadingAI, setLoadingAI] = useState(false);
+
+            // 2 state UI THUẦN HIỂN THỊ (đóng/mở modal) — chỉ dùng cho bản Mobile thu gọn, không ảnh hưởng
+            // gì tới dữ liệu/logic gốc.
+            const [showAiAdviceModal, setShowAiAdviceModal] = useState(false);
+            const [showAiManagerModal, setShowAiManagerModal] = useState(false);
 
             // Mỗi tài khoản nhân viên có 1 định danh RIÊNG (tai_khoan) để lịch sử chat với AI Manager của người
             // này KHÔNG bao giờ trộn lẫn/đè lên người khác. Giờ lưu ở bảng ai_manager_logs RIÊNG BIỆT hẳn
@@ -2563,6 +3120,26 @@
 
                 return { revenue, cost, profit, totalInStock, lowStockCount, totalDebt };
             }, [products, customers, orders]);
+
+            // Doanh thu/lợi nhuận HÔM NAY so với HÔM QUA — chỉ dùng cho 2 thẻ đầu tiên ở bản Mobile, tính
+            // trực tiếp từ trường "date" có sẵn trong orders (KHÔNG bịa số liệu, không thêm bảng/dữ liệu mới).
+            const mobileStats = useMemo(() => {
+                const todayStr = new Date().toISOString().slice(0, 10);
+                const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+                let revToday = 0, profitToday = 0, revYesterday = 0, profitYesterday = 0;
+                orders.forEach(o => {
+                    if (o.status !== "Thành công") return;
+                    const d = (o.date || "").slice(0, 10);
+                    if (d === todayStr) { revToday += o.finalTotal; profitToday += o.profit; }
+                    else if (d === yesterdayStr) { revYesterday += o.finalTotal; profitYesterday += o.profit; }
+                });
+                const pctChange = (today, yest) => yest > 0 ? ((today - yest) / yest * 100) : (today > 0 ? 100 : 0);
+                return {
+                    revToday, profitToday,
+                    revChangePct: pctChange(revToday, revYesterday),
+                    profitChangePct: pctChange(profitToday, profitYesterday)
+                };
+            }, [orders]);
 
             const triggerGeminiDashboard = async () => {
                 if (!configs.geminiApiKey) {
@@ -2740,6 +3317,162 @@
                 setPendingAction(null);
                 showToast("Đã thêm hàng mới vào kho từ AI!", "success");
             };
+
+            // ============ BẢN MOBILE (thu gọn kiểu mockup) — dùng chung 100% state/hàm xử lý ở trên,
+            // chỉ khác cách hiển thị. Bản Desktop bên dưới giữ NGUYÊN VẸN không đổi 1 dòng nào. ============
+            if (isMobile) {
+                const pct = (val) => `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
+                return (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between px-0.5">
+                            <h2 className="font-bold text-[var(--c-ink)] text-base">Tổng quan hôm nay</h2>
+                            <span className="text-[var(--c-muted)] text-xs">Cập nhật {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+
+                        {/* 4 thẻ thống kê */}
+                        <div className="grid grid-cols-2 gap-2.5">
+                            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-[var(--c-line)] space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[var(--c-accent)] font-bold text-xs">
+                                    <span className="h-6 w-6 rounded-full bg-[#EAF7F1] flex items-center justify-center"><i className="fa-solid fa-sack-dollar"></i></span>
+                                    Doanh thu
+                                </div>
+                                <p className="font-extrabold text-[var(--c-ink)] text-base">{mobileStats.revToday.toLocaleString()}đ</p>
+                                <p className={`text-xs font-bold ${mobileStats.revChangePct >= 0 ? 'text-[var(--c-accent)]' : 'text-[var(--c-danger)]'}`}>
+                                    <i className={`fa-solid fa-arrow-${mobileStats.revChangePct >= 0 ? 'up' : 'down'}`}></i> {pct(mobileStats.revChangePct)} so với hôm qua
+                                </p>
+                            </div>
+                            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-[var(--c-line)] space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[var(--c-primary)] font-bold text-xs">
+                                    <span className="h-6 w-6 rounded-full bg-[#EAF2FA] flex items-center justify-center"><i className="fa-solid fa-chart-line"></i></span>
+                                    Lợi nhuận
+                                </div>
+                                <p className="font-extrabold text-[var(--c-ink)] text-base">{mobileStats.profitToday.toLocaleString()}đ</p>
+                                <p className={`text-xs font-bold ${mobileStats.profitChangePct >= 0 ? 'text-[var(--c-accent)]' : 'text-[var(--c-danger)]'}`}>
+                                    <i className={`fa-solid fa-arrow-${mobileStats.profitChangePct >= 0 ? 'up' : 'down'}`}></i> {pct(mobileStats.profitChangePct)} so với hôm qua
+                                </p>
+                            </div>
+                            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-[var(--c-line)] space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[var(--c-warning)] font-bold text-xs">
+                                    <span className="h-6 w-6 rounded-full bg-[#FBF0E1] flex items-center justify-center"><i className="fa-solid fa-hand-holding-dollar"></i></span>
+                                    Công nợ
+                                </div>
+                                <p className="font-extrabold text-[var(--c-ink)] text-base">{stats.totalDebt.toLocaleString()}đ</p>
+                                <p className="text-xs text-[var(--c-muted)]">Tổng công nợ khách hàng</p>
+                            </div>
+                            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-[var(--c-line)] space-y-1.5">
+                                <div className="flex items-center gap-1.5 text-[var(--c-ai)] font-bold text-xs">
+                                    <span className="h-6 w-6 rounded-full bg-[#EFEBFB] flex items-center justify-center"><i className="fa-solid fa-boxes-stacked"></i></span>
+                                    Tồn kho
+                                </div>
+                                <p className="font-extrabold text-[var(--c-ink)] text-base">{stats.totalInStock}</p>
+                                <p className="text-xs text-[var(--c-muted)]">
+                                    {products.length} SKU linh kiện
+                                    {stats.lowStockCount > 0 && <span className="text-[var(--c-danger)]"> · {stats.lowStockCount} sắp hết</span>}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Thẻ Trợ lý phân tích báo cáo — bấm mở modal chứa đầy đủ tính năng gốc */}
+                        <button onClick={() => setShowAiAdviceModal(true)} className="w-full text-left bg-[#EAF2FA] border border-[var(--c-primary-light)] rounded-2xl p-3.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-[var(--c-primary)]"><i className="fa-solid fa-wand-magic-sparkles"></i></span>
+                                <span className="font-bold text-[var(--c-ink)] text-xxs">Trợ lý phân tích báo cáo <span className="bg-[var(--c-primary)] text-white text-[10px] px-1.5 py-0.5 rounded ml-1">AI</span></span>
+                            </div>
+                            <p className="text-[var(--c-muted)] text-xxs line-clamp-2">{aiAdvice}</p>
+                            <span className="inline-block text-[var(--c-primary)] font-bold text-xxs">Xem phân tích chi tiết →</span>
+                        </button>
+
+                        {/* Thẻ Siêu trợ lý quản trị — bấm mở modal chat đầy đủ (dùng lại đúng aiLogs/handleExecuteAICommand) */}
+                        <button onClick={() => setShowAiManagerModal(true)} className="w-full text-left bg-[#EFEBFB] border border-[#DCD3F4] rounded-2xl p-3.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-[var(--c-ai)]"><i className="fa-solid fa-brain"></i></span>
+                                <span className="font-bold text-[var(--c-ink)] text-xxs">Siêu trợ lý quản trị <span className="bg-[var(--c-ai)] text-white text-[10px] px-1.5 py-0.5 rounded ml-1">AI</span></span>
+                            </div>
+                            <p className="text-[var(--c-muted)] text-xxs">Bạn cần hỗ trợ quản lý hoặc phân tích dữ liệu? Hãy hỏi tôi bất cứ điều gì!</p>
+                            <span className="inline-block text-[var(--c-ai)] font-bold text-xxs">Nhắn tin với trợ lý →</span>
+                        </button>
+
+                        {/* Modal: Trợ lý phân tích báo cáo — TÁI SỬ DỤNG nguyên aiAdvice/loadingAI/triggerGeminiDashboard */}
+                        {showAiAdviceModal && (
+                            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50" onClick={() => setShowAiAdviceModal(false)}>
+                                <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-4 space-y-3 max-h-[85vh] overflow-y-auto text-xxs" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center border-b pb-2">
+                                        <span className="font-bold text-sm"><i className="fa-solid fa-wand-magic-sparkles text-[var(--c-warning)]"></i> Trợ lý Phân Tích Báo Cáo (AI)</span>
+                                        <button onClick={() => setShowAiAdviceModal(false)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                    <div className="whitespace-pre-line bg-[var(--c-bg)] rounded-xl p-3 border border-[var(--c-line)]">{aiAdvice}</div>
+                                    <button onClick={triggerGeminiDashboard} disabled={loadingAI} className="w-full bg-[var(--c-ai)] hover:bg-[var(--c-ai-dark)] text-white font-bold py-2.5 rounded-xl">
+                                        {loadingAI ? "Đang xử lý..." : "Yêu cầu AI phân tích lại"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Modal: Siêu trợ lý quản trị — TÁI SỬ DỤNG nguyên aiLogs/aiCommand/handleExecuteAICommand/pendingAction */}
+                        {showAiManagerModal && (
+                            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50" onClick={() => setShowAiManagerModal(false)}>
+                                <div className="w-full bg-white rounded-t-2xl p-4 space-y-2.5 max-h-[88vh] flex flex-col text-xxs" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center border-b pb-2">
+                                        <span className="font-bold text-sm"><i className="fa-solid fa-brain text-[var(--c-ai)]"></i> Siêu trợ lý quản trị AI</span>
+                                        <button onClick={() => setShowAiManagerModal(false)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                    <div className="flex-1 bg-[var(--c-bg)] border rounded-xl p-3 overflow-y-auto space-y-1.5 min-h-[160px]">
+                                        {aiLogs.length === 0 && (
+                                            <p className="text-[var(--c-muted)] text-center py-8">
+                                                Hãy thử ra lệnh bằng tiếng Việt tự nhiên! Ví dụ:<br/>
+                                                <span className="italic font-bold">"Thêm mặt hàng mới vỏ ip 11 giá 150k"</span>
+                                            </p>
+                                        )}
+                                        {aiLogs.map((log, idx) => (
+                                            <div key={idx} className={`flex ${log.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                <span className={`px-3 py-2 rounded-xl max-w-[85%] leading-normal font-semibold ${log.sender === 'user' ? 'bg-[var(--c-primary-dark)] text-white' : 'bg-[#EFEBFB] border border-[#DCD3F4] text-[var(--c-ink)]'}`}>
+                                                    {log.text}
+                                                </span>
+                                            </div>
+                                        ))}
+                                        {loadingCmd && (
+                                            <div className="flex justify-start">
+                                                <span className="px-3 py-2 bg-[#F1F5F9] rounded-xl text-[var(--c-muted)]"><i className="fa-solid fa-spinner animate-spin mr-1"></i> AI đang thực thi...</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {pendingAction && (
+                                        <form onSubmit={handleConfirmPendingAction} className="bg-[var(--c-bg)] border rounded-xl p-3 space-y-1.5">
+                                            <p className="font-semibold text-[var(--c-muted)] bg-[#FBF0E1] border border-[#F0DCB8] rounded-xl px-2.5 py-1 flex justify-between items-center">
+                                                ⚠️ Thiếu thông tin, vui lòng bổ sung:
+                                                <button type="button" onClick={() => setPendingAction(null)} className="text-[var(--c-danger)] font-bold">Hủy</button>
+                                            </p>
+                                            <input type="text" value={pendingAction.data.name} onChange={(e) => setPendingAction({ ...pendingAction, data: { ...pendingAction.data, name: e.target.value }})} placeholder="Tên linh kiện" className="w-full bg-white border rounded-xl p-2 font-bold" />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="number" value={pendingAction.data.costPrice} onChange={(e) => setPendingAction({ ...pendingAction, data: { ...pendingAction.data, costPrice: e.target.value }})} onFocus={(e) => e.target.select()} placeholder="Giá vốn" className="w-full bg-white border rounded-xl p-2 font-bold" required />
+                                                <input type="number" value={pendingAction.data.sellPrice} onChange={(e) => setPendingAction({ ...pendingAction, data: { ...pendingAction.data, sellPrice: e.target.value }})} onFocus={(e) => e.target.select()} placeholder="Giá bán" className="w-full bg-white border rounded-xl p-2 font-bold text-[var(--c-primary)]" />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input type="number" value={pendingAction.data.stock} onChange={(e) => setPendingAction({ ...pendingAction, data: { ...pendingAction.data, stock: e.target.value }})} onFocus={(e) => e.target.select()} placeholder="Tồn kho" className="w-full bg-white border rounded-xl p-2 font-bold text-[var(--c-danger)]" />
+                                                <select value={pendingAction.data.category} onChange={(e) => setPendingAction({ ...pendingAction, data: { ...pendingAction.data, category: e.target.value }})} className="w-full bg-white border rounded-xl p-2">
+                                                    <option value="Màn hình">Màn hình</option>
+                                                    <option value="Pin">Pin</option>
+                                                    <option value="Kính lưng">Kính lưng</option>
+                                                    <option value="Phụ kiện">Phụ kiện</option>
+                                                    <option value="Camera">Camera</option>
+                                                    <option value="Dụng cụ">Dụng cụ</option>
+                                                </select>
+                                            </div>
+                                            <button type="submit" className="w-full bg-[var(--c-accent)] hover:bg-[var(--c-accent-dark)] text-white font-bold py-2 rounded-xl">Lưu vào kho hàng ngay</button>
+                                        </form>
+                                    )}
+
+                                    <form onSubmit={handleExecuteAICommand} className="flex gap-2 pt-1">
+                                        <input type="text" placeholder="Gõ lệnh quản trị..." value={aiCommand} onChange={(e) => setAiCommand(e.target.value)} className="flex-1 rounded-xl border border-[var(--c-line)] px-3 py-2.5 font-bold focus:outline-none focus:border-[var(--c-ai)]" />
+                                        <button type="submit" className="bg-[var(--c-ai)] hover:bg-[var(--c-ai-dark)] text-white font-bold px-4 py-2.5 rounded-xl">Gửi</button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
 
             return (
                 <div className="space-y-3">
