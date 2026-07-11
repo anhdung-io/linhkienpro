@@ -892,8 +892,9 @@
             // ============ ĐIỀU HƯỚNG RIÊNG CHO GIAO DIỆN MOBILE (< 768px) ============
             // Tách biệt hoàn toàn khỏi "activeTab" (biến điều khiển sidebar/nội dung bản Desktop, GIỮ NGUYÊN
             // không đổi) để tuyệt đối không ảnh hưởng tới luồng dữ liệu/logic gốc của bản Desktop.
-            const [mobileTab, setMobileTab] = useState("dashboard"); // 'dashboard'|'products'|'sales'|'customers'|'menu'
+            const [mobileTab, setMobileTab] = useState("dashboard"); // 'dashboard'|'products'|'customers'|'menu'
             const [mobileMenuSection, setMobileMenuSection] = useState(null); // null | 'configs'|'messenger'|'shipping'|'history'
+            const [mobileQuickOrderOpen, setMobileQuickOrderOpen] = useState(false); // nút "Bán hàng" ở đáy -> mở sẵn khung Tạo đơn nhanh ngay trong Kho hàng
             const [showMobileSearch, setShowMobileSearch] = useState(false);
             const [mobileSearchQuery, setMobileSearchQuery] = useState("");
             const [showMobileNotif, setShowMobileNotif] = useState(false);
@@ -1974,13 +1975,17 @@
                                         orders={orders} 
                                         setOrders={setOrders}
                                         shippings={shippings}
+                                        setShippings={setShippings}
                                         configs={configs}
                                         showToast={showToast}
                                         askConfirm={askConfirm}
+                                        deleteToTrash={deleteToTrash}
                                         resetDatabase={resetDatabase}
                                         setShowTrashModal={setShowTrashModal}
                                         trashBin={trashBin}
                                         dbUpsertProduct={dbUpsertProduct}
+                                        dbUpsertOrder={dbUpsertOrder}
+                                        dbDeleteOrder={dbDeleteOrder}
                                         dbInsertAiLog={dbInsertAiLog}
                                         aiManagerLogs={aiManagerLogs}
                                         currentUser={currentUser}
@@ -1994,13 +1999,22 @@
                                     <MobileProductsTab 
                                         products={products} 
                                         setProducts={setProducts}
+                                        customers={customers}
+                                        setCustomers={setCustomers}
+                                        orders={orders}
+                                        setOrders={setOrders}
+                                        shippings={shippings}
+                                        setShippings={setShippings}
                                         configs={configs}
                                         showToast={showToast}
                                         askConfirm={askConfirm}
                                         deleteToTrash={deleteToTrash}
                                         dbUpsertProduct={dbUpsertProduct}
                                         dbDeleteProduct={dbDeleteProduct}
+                                        dbInsertOrder={dbInsertOrder}
                                         categories={categories}
+                                        quickOrderOpen={mobileQuickOrderOpen}
+                                        setQuickOrderOpen={setMobileQuickOrderOpen}
                                     />
                                 </div>
                             )}
@@ -2017,28 +2031,6 @@
                                         deleteToTrash={deleteToTrash}
                                     />
                                 </div>
-                            )}
-
-                            {mobileTab === "sales" && (
-                                <MobileSalesTab 
-                                    products={products} 
-                                    setProducts={setProducts}
-                                    customers={customers} 
-                                    setCustomers={setCustomers}
-                                    orders={orders} 
-                                    setOrders={setOrders}
-                                    shippings={shippings}
-                                    setShippings={setShippings}
-                                    configs={configs}
-                                    showToast={showToast}
-                                    askConfirm={askConfirm}
-                                    deleteToTrash={deleteToTrash}
-                                    aiOrderDraft={aiOrderDraft}
-                                    setAiOrderDraft={setAiOrderDraft}
-                                    dbInsertOrder={dbInsertOrder}
-                                    dbUpsertProduct={dbUpsertProduct}
-                                    dbDeleteOrder={dbDeleteOrder}
-                                />
                             )}
 
                             {mobileTab === "menu" && mobileMenuSection === null && (
@@ -2133,7 +2125,10 @@
                             )}
                         </main>
 
-                        {/* Thanh 5 Tab cố định dưới đáy màn hình — kiểu Facebook: cao rãi, icon to, chữ đậm khi active */}
+                        {/* Thanh 5 Tab cố định dưới đáy màn hình — kiểu Facebook: cao rãi, icon to, chữ đậm khi active.
+                            LƯU Ý: nút "Bán hàng" giờ trỏ thẳng vào Kho hàng với khung Tạo đơn nhanh mở sẵn (đã gộp
+                            "Tạo đơn nhanh" vào Kho hàng theo yêu cầu), 2 nút "Kho hàng"/"Bán hàng" tách trạng thái
+                            active riêng dựa vào mobileQuickOrderOpen chứ không dùng chung 1 mobileTab nữa. */}
                         <nav className="fixed bottom-0 left-0 right-0 z-30 flex items-stretch h-20 bg-white border-t border-gray-100 md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
                             {[
                                 { key: "dashboard", icon: "fa-chart-pie", label: "Tổng quan" },
@@ -2141,16 +2136,31 @@
                                 { key: "sales", icon: "fa-cash-register", label: "Bán hàng" },
                                 { key: "customers", icon: "fa-users", label: "Khách hàng" },
                                 { key: "menu", icon: "fa-bars", label: "Menu" },
-                            ].map(t => (
-                                <button 
-                                    key={t.key}
-                                    onClick={() => { setMobileTab(t.key); if (t.key !== "menu") setMobileMenuSection(null); }}
-                                    className={`flex-1 flex flex-col items-center justify-center gap-1.5 text-xs transition-colors ${mobileTab === t.key ? 'text-[var(--c-primary)] font-bold' : 'text-gray-400 font-medium'}`}
-                                >
-                                    <i className={`fa-solid ${t.icon} text-[26px]`}></i>
-                                    {t.label}
-                                </button>
-                            ))}
+                            ].map(t => {
+                                const isSalesBtn = t.key === "sales";
+                                const isActive = isSalesBtn 
+                                    ? (mobileTab === "products" && mobileQuickOrderOpen)
+                                    : (mobileTab === t.key && !(t.key === "products" && mobileQuickOrderOpen));
+                                return (
+                                    <button 
+                                        key={t.key}
+                                        onClick={() => {
+                                            if (isSalesBtn) {
+                                                setMobileTab("products");
+                                                setMobileQuickOrderOpen(true);
+                                            } else {
+                                                setMobileTab(t.key);
+                                                if (t.key === "products") setMobileQuickOrderOpen(false);
+                                                if (t.key !== "menu") setMobileMenuSection(null);
+                                            }
+                                        }}
+                                        className={`flex-1 flex flex-col items-center justify-center gap-1.5 text-xs transition-colors ${isActive ? 'text-[var(--c-primary)] font-bold' : 'text-gray-400 font-medium'}`}
+                                    >
+                                        <i className={`fa-solid ${t.icon} text-[26px]`}></i>
+                                        {t.label}
+                                    </button>
+                                );
+                            })}
                         </nav>
 
                         {/* ============ MODAL TÌM KIẾM NHANH (icon kính lúp header) — tìm trực tiếp trong
@@ -2322,89 +2332,119 @@
         // luồng nghiệp vụ mới nào ngoài việc gọi lại đúng những hàm đã tồn tại theo đúng cách "Đơn hàng đã
         // bán" và "Quản lý Vận đơn" đang làm.
         // ==========================================
-        function MobileSalesTab({ products, setProducts, customers, setCustomers, orders, setOrders, shippings, setShippings, configs, showToast, askConfirm, deleteToTrash, aiOrderDraft, setAiOrderDraft, dbInsertOrder, dbUpsertProduct, dbDeleteOrder }) {
-            const [showForm, setShowForm] = useState(true);
+        // ==========================================
+        // GIAO DIỆN MOBILE — "ĐƠN HÀNG ĐÃ BÁN" (trước là "Dòng thời gian đơn hàng" trong tab Bán hàng,
+        // giờ mở ra từ ô "Lợi nhuận" ở Tổng quan). Không còn nhúng form Tạo đơn nhanh ở đây nữa — phần đó
+        // đã chuyển hẳn sang tích hợp trong tab Kho hàng.
+        // ==========================================
+        function MobileOrdersFeed({ products, setProducts, orders, setOrders, shippings, setShippings, configs, showToast, askConfirm, deleteToTrash, dbUpsertProduct, dbUpsertOrder, dbDeleteOrder }) {
             const [openMenuId, setOpenMenuId] = useState(null);
             const [viewingOrder, setViewingOrder] = useState(null);
             const [statusSheetOrder, setStatusSheetOrder] = useState(null);
             const [printOrder, setPrintOrder] = useState(null);
+            const [filterDate, setFilterDate] = useState("");
 
-            // Hủy 1 đơn: hoàn kho + đưa vào Thùng Rác + xóa khỏi Supabase — GIỐNG HỆT logic ở "Đơn hàng đã bán"
-            const cancelOneOrder = (target) => {
-                deleteToTrash("Đơn hàng", target);
-                const restoredProducts = products.map(p => {
-                    const orderItem = target.items.find(it => it.productId === p.id);
-                    if (orderItem) return { ...p, stock: p.stock + orderItem.quantity };
-                    return p;
-                });
-                setProducts(restoredProducts);
-                restoredProducts.forEach(p => {
-                    const orderItem = target.items.find(it => it.productId === p.id);
-                    if (orderItem) dbUpsertProduct(p);
-                });
-                setOrders(prev => prev.filter(o => o.id !== target.id));
-                setShippings(prev => prev.filter(s => s.orderId !== target.id));
-                dbDeleteOrder(target.id);
-            };
-
-            const handleDeleteOrder = (order) => {
+            // HỦY đơn (khách không muốn mua nữa): HOÀN KHO, đơn VẪN được giữ lại nhưng đổi trạng thái sang
+            // "Hủy/Hoàn trả" (hiển thị màu đỏ) — không xóa khỏi danh sách, không đưa vào Thùng Rác.
+            const cancelOrderWithRestock = (order) => {
                 askConfirm(
                     "XÁC NHẬN HỦY ĐƠN HÀNG",
-                    `Bạn có thật sự muốn hủy đơn hàng ${order.id} này? Các mặt hàng sẽ được cộng trả lại vào kho hàng. Bản ghi đơn hàng này sẽ được đưa vào Thùng Rác.`,
+                    `Hủy đơn hàng ${order.id}? Số lượng hàng trong đơn sẽ được HOÀN LẠI vào kho. Đơn vẫn được lưu lại với trạng thái "Hủy/Hoàn trả".`,
                     () => {
-                        cancelOneOrder(order);
-                        showToast(`Đã hủy hoàn tất đơn hàng ${order.id} & chuyển vào Thùng Rác!`, "success");
+                        const restoredProducts = products.map(p => {
+                            const orderItem = order.items.find(it => it.productId === p.id);
+                            if (orderItem) return { ...p, stock: p.stock + orderItem.quantity };
+                            return p;
+                        });
+                        setProducts(restoredProducts);
+                        restoredProducts.forEach(p => {
+                            const orderItem = order.items.find(it => it.productId === p.id);
+                            if (orderItem) dbUpsertProduct(p);
+                        });
+                        if (order.isShipping) {
+                            // setShippings (App()) tự map ngược lại vào orders.trangThai + tự gọi dbUpsertOrder
+                            setShippings(prev => prev.map(s => s.orderId === order.id ? { ...s, status: "Hủy/Hoàn trả" } : s));
+                        } else {
+                            const updatedOrder = { ...order, trangThai: ORDER_STATUS.HUY_HOAN };
+                            setOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
+                            dbUpsertOrder(updatedOrder);
+                        }
+                        showToast(`Đã hủy đơn hàng ${order.id} & hoàn kho!`, "success");
+                        setOpenMenuId(null);
+                        setStatusSheetOrder(null);
                     }
                 );
             };
 
-            // Cập nhật trạng thái giao hàng — TÁI SỬ DỤNG NGUYÊN VẸN "setShippings" (App() đã map ngược lại
-            // vào orders.trangThai + tự gọi dbUpsertOrder), đúng y hệt cách "Quản lý Vận đơn" đang làm.
+            // XÓA đơn: xóa hẳn khỏi danh sách + đưa vào Thùng Rác để khôi phục nếu cần — KHÔNG hoàn kho
+            const handleDeleteOrder = (order) => {
+                askConfirm(
+                    "XÁC NHẬN XÓA ĐƠN HÀNG",
+                    `Xóa hẳn đơn hàng ${order.id}? Đơn sẽ được chuyển vào Thùng Rác. LƯU Ý: số lượng hàng trong đơn sẽ KHÔNG được hoàn lại vào kho.`,
+                    () => {
+                        deleteToTrash("Đơn hàng", order);
+                        setOrders(prev => prev.filter(o => o.id !== order.id));
+                        setShippings(prev => prev.filter(s => s.orderId !== order.id));
+                        dbDeleteOrder(order.id);
+                        showToast(`Đã xóa đơn hàng ${order.id}!`, "success");
+                        setOpenMenuId(null);
+                    }
+                );
+            };
+
+            // Chọn trạng thái ở bottom-sheet (chỉ áp dụng cho đơn CÓ SHIP) — nếu chọn "Hủy/Hoàn trả" thì
+            // chuyển hướng sang luồng hủy có hoàn kho ở trên, các trạng thái khác chỉ đổi nhãn hiển thị.
             const handleUpdateOrderStatus = (order, nextLabel) => {
+                if (nextLabel === "Hủy/Hoàn trả") {
+                    cancelOrderWithRestock(order);
+                    return;
+                }
                 setShippings(prev => prev.map(s => s.orderId === order.id ? { ...s, status: nextLabel } : s));
                 showToast(`Cập nhật trạng thái: ${nextLabel}`);
                 setStatusSheetOrder(null);
             };
 
-            const sortedOrders = [...orders].reverse();
+            // Bấm nút "Cập nhật trạng thái" trên thẻ: đơn ship -> mở bottom-sheet chọn trạng thái;
+            // đơn bán tại quầy -> đi thẳng vào luồng "Hủy đơn" (khách không muốn mua nữa) theo đúng yêu cầu.
+            const handleStatusButtonClick = (order) => {
+                if (order.trangThai === ORDER_STATUS.HUY_HOAN) return; // đã hủy rồi, không thao tác nữa
+                if (order.isShipping) {
+                    setStatusSheetOrder(order);
+                } else {
+                    cancelOrderWithRestock(order);
+                }
+            };
+
+            const sortedOrders = [...orders]
+                .filter(o => !filterDate || (o.date || "").startsWith(filterDate))
+                .reverse();
 
             return (
-                <div className="p-3 space-y-3">
-                    {/* Form tạo đơn nhanh (POS) — tái sử dụng nguyên vẹn component gốc */}
-                    <div className="bg-white rounded-2xl border border-[var(--c-line)] overflow-hidden">
-                        <button onClick={() => setShowForm(v => !v)} className="w-full flex items-center justify-between px-3.5 py-3 bg-[#EAF2FA]">
-                            <span className="font-bold text-[var(--c-primary-dark)] text-xxs uppercase">⚡ Tạo đơn nhanh (POS)</span>
-                            <i className={`fa-solid fa-chevron-${showForm ? 'up' : 'down'} text-[var(--c-primary)]`}></i>
-                        </button>
-                        {showForm && (
-                            <div className="p-2.5">
-                                <POSTab 
-                                    products={products} 
-                                    setProducts={setProducts}
-                                    customers={customers} 
-                                    setCustomers={setCustomers}
-                                    orders={orders} 
-                                    setOrders={setOrders} 
-                                    shippings={shippings}
-                                    setShippings={setShippings}
-                                    configs={configs}
-                                    showToast={showToast}
-                                    aiOrderDraft={aiOrderDraft}
-                                    setAiOrderDraft={setAiOrderDraft}
-                                    dbInsertOrder={dbInsertOrder}
-                                    dbUpsertProduct={dbUpsertProduct}
-                                />
-                            </div>
+                <div className="space-y-2.5">
+                    {/* Lọc theo ngày */}
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="date" 
+                            value={filterDate} 
+                            onChange={(e) => setFilterDate(e.target.value)} 
+                            className="flex-1 bg-white border border-[var(--c-line)] rounded-xl px-3 py-2.5 text-xs"
+                        />
+                        {filterDate && (
+                            <button onClick={() => setFilterDate("")} className="shrink-0 bg-[#F1F5F9] text-[var(--c-muted)] font-bold px-3 py-2.5 rounded-xl text-xs">
+                                Xóa lọc
+                            </button>
                         )}
                     </div>
 
-                    {/* Dòng thời gian đơn hàng kiểu Feed — mỗi đơn là 1 thẻ độc lập */}
-                    <div className="space-y-2.5">
-                        <h3 className="font-bold text-[var(--c-ink)] text-xxs uppercase px-1">📝 Dòng thời gian đơn hàng</h3>
-                        {sortedOrders.length === 0 && (
-                            <div className="bg-white rounded-2xl border border-[var(--c-line)] p-6 text-center text-[var(--c-muted)] text-xxs">Chưa có đơn hàng nào.</div>
-                        )}
-                        {sortedOrders.map(o => (
+                    {sortedOrders.length === 0 && (
+                        <div className="bg-white rounded-2xl border border-[var(--c-line)] p-6 text-center text-[var(--c-muted)] text-xxs">
+                            {filterDate ? "Không có đơn hàng nào trong ngày đã chọn." : "Chưa có đơn hàng nào."}
+                        </div>
+                    )}
+
+                    {sortedOrders.map(o => {
+                        const isCancelled = o.trangThai === ORDER_STATUS.HUY_HOAN;
+                        return (
                             <div key={o.id} className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 space-y-2.5 relative text-xxs">
                                 <div className="flex justify-between items-start">
                                     <div>
@@ -2418,16 +2458,30 @@
                                         {openMenuId === o.id && (
                                             <div className="absolute right-0 top-8 z-20 bg-white border border-[var(--c-line)] rounded-xl shadow-lg overflow-hidden w-36">
                                                 <button onClick={() => { setViewingOrder(o); setOpenMenuId(null); }} className="w-full text-left px-3 py-2.5 hover:bg-[#F1F5F9]">👁️ Xem chi tiết</button>
-                                                <button onClick={() => { handleDeleteOrder(o); setOpenMenuId(null); }} className="w-full text-left px-3 py-2.5 hover:bg-[#FDEDED] text-[var(--c-danger)]">🗑️ Xóa đơn</button>
+                                                {!isCancelled && (
+                                                    <button onClick={() => cancelOrderWithRestock(o)} className="w-full text-left px-3 py-2.5 hover:bg-[#FBF0E1] text-[var(--c-warning)]">↩️ Hủy đơn (hoàn kho)</button>
+                                                )}
+                                                <button onClick={() => handleDeleteOrder(o)} className="w-full text-left px-3 py-2.5 hover:bg-[#FDEDED] text-[var(--c-danger)]">🗑️ Xóa đơn</button>
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
-                                {o.isShipping && (
-                                    <span className="inline-block bg-[#FBF0E1] text-[var(--c-warning)] rounded-xl font-bold px-2 py-0.5">
-                                        🚚 {STATUS_TO_SHIP_LABEL[o.trangThai] || "Chờ lấy hàng"}
-                                    </span>
+                                {/* Trạng thái đơn — xanh khi thành công/đã giao, đỏ khi hủy/hoàn trả, cam khi đang xử lý ship */}
+                                {isCancelled ? (
+                                    <span className="inline-block bg-[#FDEDED] text-[var(--c-danger)] rounded-xl font-bold px-2 py-0.5">❌ Hủy/Hoàn trả</span>
+                                ) : o.isShipping ? (
+                                    (() => {
+                                        const label = STATUS_TO_SHIP_LABEL[o.trangThai] || "Chờ lấy hàng";
+                                        const isDelivered = label === "Đã giao hàng";
+                                        return (
+                                            <span className={`inline-block rounded-xl font-bold px-2 py-0.5 ${isDelivered ? 'bg-[#EAF7F1] text-[var(--c-accent)]' : 'bg-[#FBF0E1] text-[var(--c-warning)]'}`}>
+                                                🚚 {label}
+                                            </span>
+                                        );
+                                    })()
+                                ) : (
+                                    <span className="inline-block bg-[#EAF7F1] text-[var(--c-accent)] rounded-xl font-bold px-2 py-0.5">✅ Thành công</span>
                                 )}
 
                                 <div className="border-t border-dashed border-[var(--c-line)] pt-2 space-y-1">
@@ -2446,18 +2500,19 @@
 
                                 <div className="grid grid-cols-2 gap-2 pt-1">
                                     <button 
-                                        onClick={() => o.isShipping ? setStatusSheetOrder(o) : showToast("Đơn bán tại quầy đã hoàn tất, không cần cập nhật trạng thái ship.")}
-                                        className="bg-[#EAF2FA] hover:bg-[#DCEAF7] text-[var(--c-primary)] font-bold py-2.5 rounded-xl"
+                                        onClick={() => handleStatusButtonClick(o)}
+                                        disabled={isCancelled}
+                                        className="bg-[#EAF2FA] hover:bg-[#DCEAF7] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--c-primary)] font-bold py-2.5 rounded-xl"
                                     >
                                         🔄 Cập nhật trạng thái
                                     </button>
                                     <button onClick={() => setPrintOrder(o)} className="bg-[var(--c-primary-dark)] hover:bg-[#072B4A] text-white font-bold py-2.5 rounded-xl">
-                                        🖨️ In đơn
+                                        🧾 Hóa đơn
                                     </button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        );
+                    })}
 
                     {/* Modal xem chi tiết đơn */}
                     {viewingOrder && (
@@ -2491,7 +2546,7 @@
                         </div>
                     )}
 
-                    {/* Bottom sheet cập nhật trạng thái */}
+                    {/* Bottom sheet cập nhật trạng thái (chỉ đơn có ship) */}
                     {statusSheetOrder && (
                         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50" onClick={() => setStatusSheetOrder(null)}>
                             <div className="w-full bg-white rounded-t-2xl p-4 space-y-2 text-xxs" onClick={(e) => e.stopPropagation()}>
@@ -2503,7 +2558,7 @@
                                     <button 
                                         key={label}
                                         onClick={() => handleUpdateOrderStatus(statusSheetOrder, label)}
-                                        className={`w-full text-left px-3.5 py-3 rounded-xl font-semibold ${(STATUS_TO_SHIP_LABEL[statusSheetOrder.trangThai] || "Chờ lấy hàng") === label ? 'bg-[var(--c-primary-dark)] text-white' : 'bg-[#F1F5F9] text-[var(--c-ink)]'}`}
+                                        className={`w-full text-left px-3.5 py-3 rounded-xl font-semibold ${label === "Hủy/Hoàn trả" ? 'text-[var(--c-danger)]' : (STATUS_TO_SHIP_LABEL[statusSheetOrder.trangThai] || "Chờ lấy hàng") === label ? 'bg-[var(--c-primary-dark)] text-white' : 'bg-[#F1F5F9] text-[var(--c-ink)]'}`}
                                     >
                                         {label}
                                     </button>
@@ -2512,12 +2567,12 @@
                         </div>
                     )}
 
-                    {/* Xem trước phiếu in */}
+                    {/* Xem trước hóa đơn */}
                     {printOrder && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-65 p-4 overflow-y-auto">
                             <div className="w-full max-w-sm bg-white rounded-xl p-4 shadow-2xl space-y-3 text-xxs">
                                 <div className="flex justify-between items-center border-b pb-2">
-                                    <span className="font-bold">🖨️ Xem trước phiếu in</span>
+                                    <span className="font-bold">🧾 Xem trước hóa đơn</span>
                                     <button onClick={() => setPrintOrder(null)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark text-sm"></i></button>
                                 </div>
                                 <div className="border border-[var(--c-line)] rounded-xl p-3 bg-[var(--c-bg)] space-y-2.5 text-sm" id="invoice-print-mobile">
@@ -2578,6 +2633,7 @@
                 </div>
             );
         }
+
 
         // ==========================================
         // GIAO DIỆN MOBILE — TAB "MENU" (gom toàn bộ phần còn lại: Cấu hình API, Messenger AI, Vận đơn,
@@ -2653,7 +2709,16 @@
         // đúng y hệt định dạng dữ liệu mà <ProductsTab> gốc đang dùng (id viết hoa, giữ dbId khi sửa...).
         // Component này CHỈ là 1 lớp hiển thị khác, không tạo ra quy tắc lưu trữ mới nào.
         // ==========================================
-        function MobileProductsTab({ products, setProducts, configs, showToast, askConfirm, deleteToTrash, dbUpsertProduct, dbDeleteProduct, categories }) {
+        // ==========================================
+        // GIAO DIỆN MOBILE — TAB "KHO HÀNG" (thẻ + pill danh mục kiểu mockup)
+        // TÁI SỬ DỤNG NGUYÊN VẸN cách lưu (setProducts + dbUpsertProduct/dbDeleteProduct + deleteToTrash),
+        // đúng y hệt định dạng dữ liệu mà <ProductsTab> gốc đang dùng (id viết hoa, giữ dbId khi sửa...).
+        // Nay TÍCH HỢP LUÔN "Tạo đơn nhanh" (trước đây là 1 tab riêng bên "Bán hàng") ngay tại đây: bật công
+        // tắc "⚡ Tạo đơn nhanh" là tích chọn số lượng thẳng trên từng thẻ linh kiện, không cần màn hình riêng.
+        // Đồng thời hỗ trợ NHẤN GIỮ 1 thẻ để kéo lên/xuống đổi thứ tự ưu tiên hiển thị (giống hệt cơ chế
+        // sortOrder + dbUpsertProduct đã dùng cho nút mũi tên lên/xuống ở bản Desktop, chỉ khác cách thao tác).
+        // ==========================================
+        function MobileProductsTab({ products, setProducts, customers, setCustomers, orders, setOrders, shippings, setShippings, configs, showToast, askConfirm, deleteToTrash, dbUpsertProduct, dbDeleteProduct, dbInsertOrder, categories, quickOrderOpen, setQuickOrderOpen }) {
             const [search, setSearch] = useState("");
             const [filterCat, setFilterCat] = useState("Tất cả");
             const [showLowStockAll, setShowLowStockAll] = useState(false);
@@ -2661,7 +2726,7 @@
             const [editingProduct, setEditingProduct] = useState(null);
             const [openCardMenuId, setOpenCardMenuId] = useState(null);
 
-            // Form state
+            // Form state (Thêm/Sửa linh kiện — quản lý kho, giữ nguyên như trước)
             const [id, setId] = useState("");
             const [name, setName] = useState("");
             const [category, setCategory] = useState(() => (categories[0] && categories[0].name) || "Khác");
@@ -2669,6 +2734,26 @@
             const [sellPrice, setSellPrice] = useState(0);
             const [stock, setStock] = useState(0);
             const [unit, setUnit] = useState("Cái");
+
+            // ============ TẠO ĐƠN NHANH (tích hợp ngay trong Kho hàng) ============
+            const [cart, setCart] = useState([]);
+            const [custName, setCustName] = useState("");
+            const [custPhone, setCustPhone] = useState("");
+            const [discount, setDiscount] = useState(0);
+            const [paymentMethod, setPaymentMethod] = useState("Tiền mặt");
+            const [shipMode, setShipMode] = useState(false);
+            const [shipCarrier, setShipCarrier] = useState("SPX");
+            const [shipAddress, setShipAddress] = useState("");
+            const [shippingFee, setShippingFee] = useState(30000);
+            const [shippingNote, setShippingNote] = useState("");
+            const [showCheckoutSheet, setShowCheckoutSheet] = useState(false);
+            const [createdInvoice, setCreatedInvoice] = useState(null);
+
+            // ============ NHẤN GIỮ ĐỂ KÉO SẮP XẾP THỨ TỰ ============
+            const [draggingId, setDraggingId] = useState(null);
+            const itemRefs = useRef({});
+            const longPressTimerRef = useRef(null);
+            const touchStartY = useRef(0);
 
             const resetForm = () => {
                 setEditingProduct(null);
@@ -2742,9 +2827,183 @@
                 );
             };
 
+            // ============ TẠO ĐƠN NHANH: thêm/bớt số lượng trực tiếp trên thẻ linh kiện ============
+            const qtyInCart = (productId) => {
+                const item = cart.find(i => i.productId === productId);
+                return item ? item.quantity : 0;
+            };
+
+            const addToCart = (product, delta) => {
+                setCart(prev => {
+                    const exist = prev.find(i => i.productId === product.id);
+                    if (!exist) {
+                        if (delta <= 0) return prev;
+                        if (product.stock <= 0) { showToast(`Linh kiện [${product.name}] đã hết hàng!`, "error"); return prev; }
+                        return [...prev, { productId: product.id, name: product.name, price: product.sellPrice, cost: product.costPrice, quantity: 1 }];
+                    }
+                    const nextQty = exist.quantity + delta;
+                    if (nextQty <= 0) return prev.filter(i => i.productId !== product.id);
+                    if (nextQty > product.stock) { showToast(`Linh kiện [${product.name}] chỉ còn tồn tối đa ${product.stock}!`, "error"); return prev; }
+                    return prev.map(i => i.productId === product.id ? { ...i, quantity: nextQty } : i);
+                });
+            };
+
+            const cartTotal = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+            const finalTotal = Math.max(0, cartTotal - discount);
+            const cartCost = cart.reduce((sum, i) => sum + (i.cost * i.quantity), 0);
+            const profit = Math.max(0, finalTotal - cartCost);
+
+            const resetCartForm = () => {
+                setCart([]); setCustName(""); setCustPhone(""); setDiscount(0); setPaymentMethod("Tiền mặt");
+                setShipMode(false); setShipAddress(""); setShippingFee(30000); setShippingNote("");
+            };
+
+            // Tạo đơn — GIỐNG HỆT logic handleCheckout() ở <POSTab> gốc (cùng cấu trúc newOrder, cùng cách
+            // trừ kho + dbInsertOrder + dbUpsertProduct), chỉ khác nơi chọn hàng là ngay trong danh sách kho.
+            const handleCheckout = () => {
+                if (cart.length === 0) {
+                    showToast("Chọn ít nhất 1 linh kiện để tạo đơn!", "error");
+                    return;
+                }
+                let customer = custPhone.trim() ? customers.find(c => c.phone === custPhone.trim()) : null;
+                if (!customer && custName.trim()) {
+                    customer = {
+                        id: "KH" + (1001 + customers.length),
+                        name: custName.trim(),
+                        phone: custPhone.trim() || "0900000000",
+                        address: shipAddress.trim() || "",
+                        debt: 0,
+                        notes: "Tạo trực tiếp từ Tạo đơn nhanh (Kho hàng)"
+                    };
+                    setCustomers(prev => [...prev, customer]);
+                }
+
+                const orderId = "HD" + Date.now();
+                const orderDate = new Date().toISOString().replace('T', ' ').substring(0, 16);
+                const randomTracking = shipMode ? `${shipCarrier}-VN-${Math.floor(1000000 + Math.random() * 9000000)}` : "";
+
+                const newOrder = {
+                    id: orderId,
+                    date: orderDate,
+                    customerId: customer ? customer.id : "KH_LE",
+                    customerName: customer ? customer.name : (custName.trim() || "Khách bán lẻ tại quầy"),
+                    customerPhone: customer ? customer.phone : (custPhone.trim() || ""),
+                    items: cart,
+                    total: cartTotal,
+                    discount: discount,
+                    finalTotal: finalTotal,
+                    profit: profit,
+                    paymentMethod: paymentMethod,
+                    status: "Thành công",
+                    note: paymentMethod,
+                    trangThai: shipMode ? ORDER_STATUS.CHO_LAY_HANG : ORDER_STATUS.HOAN_THANH,
+                    isShipping: shipMode,
+                    carrier: shipMode ? shipCarrier : "",
+                    trackingCode: randomTracking,
+                    receiverName: shipMode ? (custName.trim() || "Khách hàng lẻ") : "",
+                    receiverPhone: shipMode ? (custPhone.trim() || "0900000000") : "",
+                    receiverAddress: shipMode ? (shipAddress.trim() || "Lấy trực tiếp") : "",
+                    codAmount: shipMode ? finalTotal : 0,
+                    shippingFee: shipMode ? Number(shippingFee) : 0,
+                    shipNote: shipMode ? shippingNote : ""
+                };
+
+                const updatedProducts = products.map(p => {
+                    const cartItem = cart.find(it => it.productId === p.id);
+                    if (cartItem) return { ...p, stock: p.stock - cartItem.quantity };
+                    return p;
+                });
+                setProducts(updatedProducts);
+                setOrders(prev => [...prev, newOrder]);
+                dbInsertOrder(newOrder);
+                updatedProducts.forEach(p => {
+                    const cartItem = cart.find(it => it.productId === p.id);
+                    if (cartItem) dbUpsertProduct(p);
+                });
+
+                setCreatedInvoice(newOrder);
+                setShowCheckoutSheet(false);
+                resetCartForm();
+                showToast("Tạo đơn hàng thành công!", "success");
+            };
+
+            // ============ NHẤN GIỮ ĐỂ KÉO SẮP XẾP (chỉ hoạt động khi KHÔNG ở chế độ Tạo đơn nhanh) ============
+            const moveProductToDisplayIndex = (draggedSku, targetDisplayIndex) => {
+                const targetSku = filtered[targetDisplayIndex] ? filtered[targetDisplayIndex].id : null;
+                if (!targetSku || targetSku === draggedSku) return;
+                setProducts(prev => {
+                    const list = [...prev];
+                    const fromIdx = list.findIndex(p => p.id === draggedSku);
+                    const toIdx = list.findIndex(p => p.id === targetSku);
+                    if (fromIdx === -1 || toIdx === -1) return prev;
+                    const [item] = list.splice(fromIdx, 1);
+                    list.splice(toIdx, 0, item);
+                    return list;
+                });
+            };
+
+            const handleTouchStart = (e, productId) => {
+                if (quickOrderOpen) return; // đang ở chế độ Tạo đơn nhanh -> không cho kéo sắp xếp
+                touchStartY.current = e.touches[0].clientY;
+                longPressTimerRef.current = setTimeout(() => {
+                    setDraggingId(productId);
+                    if (navigator.vibrate) navigator.vibrate(30);
+                }, 350);
+            };
+
+            const handleTouchMoveList = (e) => {
+                if (!draggingId) {
+                    // Chưa kích hoạt kéo — nếu ngón tay di chuyển nhiều nghĩa là đang cuộn trang bình thường,
+                    // hủy bộ đếm giữ để không hiểu nhầm thành kéo-thả.
+                    const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
+                    if (dy > 10) clearTimeout(longPressTimerRef.current);
+                    return;
+                }
+                const y = e.touches[0].clientY;
+                let targetIdx = null;
+                filtered.forEach((p, idx) => {
+                    const el = itemRefs.current[p.id];
+                    if (!el) return;
+                    const rect = el.getBoundingClientRect();
+                    if (y >= rect.top && y <= rect.bottom) targetIdx = idx;
+                });
+                if (targetIdx !== null) moveProductToDisplayIndex(draggingId, targetIdx);
+            };
+
+            const handleTouchEndList = () => {
+                clearTimeout(longPressTimerRef.current);
+                if (draggingId) {
+                    // Lưu thứ tự mới lên Supabase — đánh lại sortOrder tuần tự rồi lưu toàn bộ, giống hệt cơ
+                    // chế nút mũi tên lên/xuống ở bản Desktop (moveProduct), chỉ khác cách thao tác kéo-thả.
+                    const reindexed = products.map((p, i) => ({ ...p, sortOrder: i }));
+                    setProducts(reindexed);
+                    reindexed.forEach(p => dbUpsertProduct(p));
+                    showToast("Đã lưu thứ tự linh kiện mới!");
+                }
+                setDraggingId(null);
+            };
+
             return (
                 <div className="space-y-3 pb-16">
                     <h2 className="font-bold text-[var(--c-ink)] text-base px-0.5">Quản lý kho hàng</h2>
+
+                    {/* Công tắc Kho hàng / Tạo đơn nhanh */}
+                    <div className="flex gap-2 bg-[#F1F5F9] p-1 rounded-2xl">
+                        <button onClick={() => setQuickOrderOpen(false)} className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-colors ${!quickOrderOpen ? 'bg-white text-[var(--c-primary)] shadow-sm' : 'text-[var(--c-muted)]'}`}>
+                            📦 Kho hàng
+                        </button>
+                        <button onClick={() => setQuickOrderOpen(true)} className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-colors ${quickOrderOpen ? 'bg-white text-[var(--c-primary)] shadow-sm' : 'text-[var(--c-muted)]'}`}>
+                            ⚡ Tạo đơn nhanh
+                        </button>
+                    </div>
+
+                    {/* Thông tin khách hàng khi đang ở chế độ Tạo đơn nhanh */}
+                    {quickOrderOpen && (
+                        <div className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 grid grid-cols-2 gap-2">
+                            <input type="text" value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="Tên khách hàng" className="border rounded-xl p-2.5 text-xs" />
+                            <input type="text" value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="Số điện thoại" className="border rounded-xl p-2.5 text-xs" />
+                        </div>
+                    )}
 
                     {/* Ô tìm kiếm */}
                     <div className="relative">
@@ -2771,8 +3030,8 @@
                         ))}
                     </div>
 
-                    {/* Tồn kho thấp */}
-                    {lowStockList.length > 0 && (
+                    {/* Tồn kho thấp — chỉ hiện khi đang ở chế độ quản lý kho bình thường */}
+                    {!quickOrderOpen && lowStockList.length > 0 && (
                         <div className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 space-y-2">
                             <div className="flex justify-between items-center">
                                 <span className="font-bold text-[var(--c-danger)] text-xxs uppercase">⚠️ Tồn kho thấp</span>
@@ -2800,12 +3059,29 @@
 
                     {/* Danh sách linh kiện */}
                     <div className="space-y-2">
-                        <h3 className="font-bold text-[var(--c-ink)] text-xxs uppercase px-1">Danh sách linh kiện</h3>
+                        <div className="flex justify-between items-center px-1">
+                            <h3 className="font-bold text-[var(--c-ink)] text-xxs uppercase">Danh sách linh kiện</h3>
+                            {!quickOrderOpen && (
+                                <span className="text-[var(--c-muted)] text-xs"><i className="fa-solid fa-hand-pointer"></i> Giữ để kéo sắp xếp</span>
+                            )}
+                        </div>
                         {filtered.length === 0 && (
                             <div className="bg-white rounded-2xl border border-[var(--c-line)] p-6 text-center text-[var(--c-muted)] text-xxs">Không tìm thấy linh kiện nào.</div>
                         )}
                         {filtered.map(p => (
-                            <div key={p.id} className="bg-white rounded-2xl border border-[var(--c-line)] p-3.5 flex items-center gap-2.5 relative">
+                            <div 
+                                key={p.id}
+                                ref={(el) => { itemRefs.current[p.id] = el; }}
+                                onTouchStart={(e) => handleTouchStart(e, p.id)}
+                                onTouchMove={handleTouchMoveList}
+                                onTouchEnd={handleTouchEndList}
+                                onTouchCancel={handleTouchEndList}
+                                style={draggingId === p.id ? { touchAction: "none" } : undefined}
+                                className={`bg-white rounded-2xl border p-3.5 flex items-center gap-2.5 relative transition-transform ${draggingId === p.id ? 'scale-105 shadow-2xl ring-2 ring-[var(--c-primary)] z-10 border-[var(--c-primary)]' : 'border-[var(--c-line)]'}`}
+                            >
+                                {!quickOrderOpen && (
+                                    <span className="text-gray-300 shrink-0"><i className="fa-solid fa-grip-lines"></i></span>
+                                )}
                                 <span className="h-11 w-11 shrink-0 rounded-xl bg-[#EAF2FA] flex items-center justify-center text-[var(--c-primary)] text-lg"><i className="fa-solid fa-microchip"></i></span>
                                 <div className="flex-1 min-w-0">
                                     <p className="font-bold text-[var(--c-ink)] text-xs truncate">{p.name}</p>
@@ -2814,28 +3090,51 @@
                                 <div className="text-right shrink-0">
                                     <p className="font-bold text-[var(--c-primary)] text-sm">{p.sellPrice.toLocaleString()}đ</p>
                                 </div>
-                                <div className="relative shrink-0">
-                                    <button onClick={() => setOpenCardMenuId(openCardMenuId === p.id ? null : p.id)} className="h-8 w-8 flex items-center justify-center text-[var(--c-muted)]">
-                                        <i className="fa-solid fa-ellipsis-vertical"></i>
-                                    </button>
-                                    {openCardMenuId === p.id && (
-                                        <div className="absolute right-0 top-8 z-20 bg-white border border-[var(--c-line)] rounded-xl shadow-lg overflow-hidden w-32 text-xs">
-                                            <button onClick={() => openEditForm(p)} className="w-full text-left px-3 py-2.5 hover:bg-[#F1F5F9]">✏️ Sửa</button>
-                                            <button onClick={() => handleDelete(p.id)} className="w-full text-left px-3 py-2.5 hover:bg-[#FDEDED] text-[var(--c-danger)]">🗑️ Xóa</button>
-                                        </div>
-                                    )}
-                                </div>
+                                {quickOrderOpen ? (
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button onClick={() => addToCart(p, -1)} className="h-8 w-8 rounded-lg bg-[#F1F5F9] text-[var(--c-ink)] font-bold flex items-center justify-center">−</button>
+                                        <span className="w-5 text-center font-bold text-xs">{qtyInCart(p.id)}</span>
+                                        <button onClick={() => addToCart(p, 1)} className="h-8 w-8 rounded-lg bg-[var(--c-primary)] text-white font-bold flex items-center justify-center">+</button>
+                                    </div>
+                                ) : (
+                                    <div className="relative shrink-0">
+                                        <button onClick={() => setOpenCardMenuId(openCardMenuId === p.id ? null : p.id)} className="h-8 w-8 flex items-center justify-center text-[var(--c-muted)]">
+                                            <i className="fa-solid fa-ellipsis-vertical"></i>
+                                        </button>
+                                        {openCardMenuId === p.id && (
+                                            <div className="absolute right-0 top-8 z-20 bg-white border border-[var(--c-line)] rounded-xl shadow-lg overflow-hidden w-32 text-xs">
+                                                <button onClick={() => openEditForm(p)} className="w-full text-left px-3 py-2.5 hover:bg-[#F1F5F9]">✏️ Sửa</button>
+                                                <button onClick={() => handleDelete(p.id)} className="w-full text-left px-3 py-2.5 hover:bg-[#FDEDED] text-[var(--c-danger)]">🗑️ Xóa</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
 
-                    {/* Nút tròn nổi (+) thêm linh kiện mới */}
-                    <button 
-                        onClick={openAddForm}
-                        className="fixed bottom-24 right-4 z-30 h-14 w-14 rounded-full bg-[var(--c-primary)] hover:bg-[var(--c-primary-dark)] text-white text-2xl shadow-lg flex items-center justify-center"
-                    >
-                        <i className="fa-solid fa-plus"></i>
-                    </button>
+                    {/* Nút tròn nổi (+) thêm linh kiện mới — chỉ hiện ở chế độ quản lý kho */}
+                    {!quickOrderOpen && (
+                        <button 
+                            onClick={openAddForm}
+                            className="fixed bottom-24 right-4 z-30 h-14 w-14 rounded-full bg-[var(--c-primary)] hover:bg-[var(--c-primary-dark)] text-white text-2xl shadow-lg flex items-center justify-center"
+                        >
+                            <i className="fa-solid fa-plus"></i>
+                        </button>
+                    )}
+
+                    {/* Thanh giỏ hàng nổi — chỉ hiện ở chế độ Tạo đơn nhanh khi đã chọn hàng */}
+                    {quickOrderOpen && cart.length > 0 && (
+                        <div className="fixed bottom-24 left-3 right-3 z-30 bg-[var(--c-primary-dark)] text-white rounded-2xl shadow-xl p-3.5 flex items-center justify-between">
+                            <div>
+                                <p className="text-xs opacity-80">{cart.reduce((s, i) => s + i.quantity, 0)} sản phẩm đã chọn</p>
+                                <p className="font-bold text-base">{cartTotal.toLocaleString()}đ</p>
+                            </div>
+                            <button onClick={() => setShowCheckoutSheet(true)} className="bg-white text-[var(--c-primary-dark)] font-bold px-5 py-2.5 rounded-xl">
+                                Tạo đơn →
+                            </button>
+                        </div>
+                    )}
 
                     {/* Bottom sheet Thêm/Sửa linh kiện */}
                     {formOpen && (
@@ -2887,9 +3186,158 @@
                             </form>
                         </div>
                     )}
+
+                    {/* Bottom sheet xác nhận tạo đơn nhanh */}
+                    {showCheckoutSheet && (
+                        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50" onClick={() => setShowCheckoutSheet(false)}>
+                            <div className="w-full bg-white rounded-t-2xl p-4 space-y-2.5 max-h-[88vh] overflow-y-auto text-xxs" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <span className="font-bold text-sm">⚡ Xác nhận tạo đơn</span>
+                                    <button onClick={() => setShowCheckoutSheet(false)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark"></i></button>
+                                </div>
+
+                                <div className="bg-[var(--c-bg)] rounded-xl p-2.5 space-y-1 max-h-32 overflow-y-auto">
+                                    {cart.map(i => (
+                                        <div key={i.productId} className="flex justify-between">
+                                            <span>{i.name} x{i.quantity}</span>
+                                            <span className="font-semibold">{(i.price * i.quantity).toLocaleString()}đ</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Tên khách hàng</label>
+                                        <input type="text" value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="Khách lẻ" className="w-full border rounded-xl p-2.5" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">SĐT</label>
+                                        <input type="text" value={custPhone} onChange={(e) => setCustPhone(e.target.value)} className="w-full border rounded-xl p-2.5" />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Giảm giá (đ)</label>
+                                        <input type="number" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} onFocus={(e) => e.target.select()} className="w-full border rounded-xl p-2.5 font-bold" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[var(--c-muted)] mb-1">Thanh toán</label>
+                                        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full border rounded-xl p-2.5">
+                                            <option>Tiền mặt</option>
+                                            <option>Chuyển khoản</option>
+                                            <option>Quẹt thẻ</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input type="checkbox" checked={shipMode} onChange={(e) => setShipMode(e.target.checked)} className="h-4 w-4" />
+                                    <span className="font-semibold">🚚 Giao hàng (khởi tạo vận đơn)</span>
+                                </label>
+
+                                {shipMode && (
+                                    <div className="bg-[#FBF0E1]/50 border border-[#F0DCB8] rounded-xl p-2.5 space-y-2">
+                                        <div>
+                                            <label className="block text-[var(--c-muted)] mb-1">Địa chỉ giao</label>
+                                            <input type="text" value={shipAddress} onChange={(e) => setShipAddress(e.target.value)} className="w-full border rounded-xl p-2.5" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="block text-[var(--c-muted)] mb-1">Phí ship (đ)</label>
+                                                <input type="number" value={shippingFee} onChange={(e) => setShippingFee(Number(e.target.value))} onFocus={(e) => e.target.select()} className="w-full border rounded-xl p-2.5 font-bold" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[var(--c-muted)] mb-1">Hãng ship</label>
+                                                <select value={shipCarrier} onChange={(e) => setShipCarrier(e.target.value)} className="w-full border rounded-xl p-2.5">
+                                                    <option value="SPX">SPX</option>
+                                                    <option value="GHN">GHN</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="border-t pt-2 space-y-1">
+                                    <div className="flex justify-between"><span className="text-[var(--c-muted)]">Tổng tiền hàng:</span><span className="font-semibold">{cartTotal.toLocaleString()}đ</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--c-muted)]">Giảm giá:</span><span className="font-semibold text-[var(--c-danger)]">-{discount.toLocaleString()}đ</span></div>
+                                    <div className="flex justify-between text-sm font-bold"><span>Khách cần trả:</span><span className="text-[var(--c-primary)]">{finalTotal.toLocaleString()}đ</span></div>
+                                </div>
+
+                                <button onClick={handleCheckout} className="w-full bg-[var(--c-accent)] hover:bg-[var(--c-accent-dark)] text-white font-bold py-3 rounded-xl">
+                                    ✅ Xác nhận & Tạo đơn
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Xem trước hóa đơn vừa tạo */}
+                    {createdInvoice && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-65 p-4 overflow-y-auto">
+                            <div className="w-full max-w-sm bg-white rounded-xl p-4 shadow-2xl space-y-3 text-xxs">
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <span className="font-bold text-[var(--c-accent)]">✅ Tạo đơn thành công!</span>
+                                    <button onClick={() => setCreatedInvoice(null)} className="text-[var(--c-muted)]"><i className="fa-solid fa-xmark text-sm"></i></button>
+                                </div>
+                                <div className="border border-[var(--c-line)] rounded-xl p-3 bg-[var(--c-bg)] space-y-2.5 text-sm" id="invoice-print-quickorder">
+                                    <div className="text-center border-b pb-2">
+                                        <h4 className="font-bold text-xs">LINHKIENPRO</h4>
+                                        <p>ĐC: {configs.shopAddress}</p>
+                                        <p>SĐT: {configs.shopPhone}</p>
+                                        <h5 className="font-bold mt-1.5 uppercase text-sm">HÓA ĐƠN GIAO DỊCH</h5>
+                                        <p className="text-[var(--c-muted)]">Mã: {createdInvoice.id} | Ngày: {createdInvoice.date}</p>
+                                    </div>
+                                    <div>
+                                        <p><strong>Khách nhận:</strong> {createdInvoice.customerName}</p>
+                                        <p><strong>Hình thức:</strong> {createdInvoice.paymentMethod}</p>
+                                    </div>
+                                    <table className="w-full border-y py-2">
+                                        <thead>
+                                            <tr className="font-bold">
+                                                <th>Linh kiện</th>
+                                                <th className="text-center">SL</th>
+                                                <th className="text-right">T.Tiền</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {createdInvoice.items.map(it => (
+                                                <tr key={it.productId} className="border-b border-dashed">
+                                                    <td>{it.name}</td>
+                                                    <td className="text-center">{it.quantity}</td>
+                                                    <td className="text-right">{(it.price * it.quantity).toLocaleString()}đ</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    <div className="text-right space-y-1">
+                                        <p>Cộng tiền: {createdInvoice.total.toLocaleString()}đ</p>
+                                        <p>Giảm giá: -{createdInvoice.discount.toLocaleString()}đ</p>
+                                        <p className="font-bold text-[var(--c-ink)]">Tổng thanh toán: {createdInvoice.finalTotal.toLocaleString()}đ</p>
+                                    </div>
+                                </div>
+                                {createdInvoice.isShipping && (
+                                    <div className="border-2 border-[var(--c-primary-dark)] rounded-xl p-2.5 bg-[#FBF0E1]/50 space-y-1.5 text-sm">
+                                        <div className="flex justify-between items-center border-b border-[var(--c-primary-dark)] pb-0.5">
+                                            <span className="font-bold">PHẦN THÔNG TIN SHIP</span>
+                                            <span className="bg-[var(--c-primary-dark)] text-white font-bold px-2 rounded-xl text-xs">{createdInvoice.carrier}</span>
+                                        </div>
+                                        <p><strong>Người nhận:</strong> {createdInvoice.receiverName} - {createdInvoice.receiverPhone}</p>
+                                        <p className="line-clamp-1"><strong>ĐC giao:</strong> {createdInvoice.receiverAddress}</p>
+                                        <p className="font-bold text-[var(--c-danger)]">COD cần thu: {(createdInvoice.codAmount || 0).toLocaleString()}đ</p>
+                                        <p className="font-mono text-center bg-white border border-[var(--c-line)] mt-1.5">{createdInvoice.trackingCode}</p>
+                                    </div>
+                                )}
+                                <div className="flex gap-2">
+                                    <button onClick={() => window.print()} className="flex-1 rounded-xl py-2.5 bg-[var(--c-primary-dark)] hover:bg-[#072B4A] text-white font-bold text-center">In hóa đơn</button>
+                                    <button onClick={() => setCreatedInvoice(null)} className="flex-1 rounded-xl py-2.5 bg-[var(--c-primary)] hover:bg-[var(--c-primary-dark)] text-white font-bold text-center">Đóng</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
+
 
         // ==========================================
         // GIAO DIỆN MOBILE — TAB "KHÁCH HÀNG" (thẻ kèm avatar màu kiểu mockup)
@@ -3072,14 +3520,15 @@
         // ==========================================
         // TAB 1: DASHBOARD (TỔNG QUAN & AI APP MANAGER)
         // ==========================================
-        function DashboardTab({ products, setProducts, customers, setCustomers, orders, setOrders, shippings, configs, showToast, askConfirm, resetDatabase, setShowTrashModal, trashBin, dbUpsertProduct, dbInsertAiLog, aiManagerLogs, currentUser, isMobile = false }) {
+        function DashboardTab({ products, setProducts, customers, setCustomers, orders, setOrders, shippings, setShippings, configs, showToast, askConfirm, deleteToTrash, resetDatabase, setShowTrashModal, trashBin, dbUpsertProduct, dbUpsertOrder, dbDeleteOrder, dbInsertAiLog, aiManagerLogs, currentUser, isMobile = false }) {
             const [aiAdvice, setAiAdvice] = useState(() => getLocalStorage("lk_ai_advice", "Chưa có lời khuyên tài chính nào từ trợ lý AI. Vui lòng cấu hình Gemini API Key và bấm 'Yêu cầu AI phân tích' phía dưới để tiến hành rà soát."));
             const [loadingAI, setLoadingAI] = useState(false);
 
-            // 2 state UI THUẦN HIỂN THỊ (đóng/mở modal) — chỉ dùng cho bản Mobile thu gọn, không ảnh hưởng
+            // 3 state UI THUẦN HIỂN THỊ (đóng/mở modal) — chỉ dùng cho bản Mobile thu gọn, không ảnh hưởng
             // gì tới dữ liệu/logic gốc.
             const [showAiAdviceModal, setShowAiAdviceModal] = useState(false);
             const [showAiManagerModal, setShowAiManagerModal] = useState(false);
+            const [showOrdersFeedModal, setShowOrdersFeedModal] = useState(false);
 
             // Mỗi tài khoản nhân viên có 1 định danh RIÊNG (tai_khoan) để lịch sử chat với AI Manager của người
             // này KHÔNG bao giờ trộn lẫn/đè lên người khác. Giờ lưu ở bảng ai_manager_logs RIÊNG BIỆT hẳn
@@ -3341,7 +3790,7 @@
                                     <i className={`fa-solid fa-arrow-${mobileStats.revChangePct >= 0 ? 'up' : 'down'}`}></i> {pct(mobileStats.revChangePct)} so với hôm qua
                                 </p>
                             </div>
-                            <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-[var(--c-line)] space-y-1.5">
+                            <button onClick={() => setShowOrdersFeedModal(true)} className="text-left bg-white rounded-2xl p-3.5 shadow-sm border border-[var(--c-line)] space-y-1.5 active:scale-95 transition-transform">
                                 <div className="flex items-center gap-1.5 text-[var(--c-primary)] font-bold text-xs">
                                     <span className="h-6 w-6 rounded-full bg-[#EAF2FA] flex items-center justify-center"><i className="fa-solid fa-chart-line"></i></span>
                                     Lợi nhuận
@@ -3350,7 +3799,7 @@
                                 <p className={`text-xs font-bold ${mobileStats.profitChangePct >= 0 ? 'text-[var(--c-accent)]' : 'text-[var(--c-danger)]'}`}>
                                     <i className={`fa-solid fa-arrow-${mobileStats.profitChangePct >= 0 ? 'up' : 'down'}`}></i> {pct(mobileStats.profitChangePct)} so với hôm qua
                                 </p>
-                            </div>
+                            </button>
                             <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-[var(--c-line)] space-y-1.5">
                                 <div className="flex items-center gap-1.5 text-[var(--c-warning)] font-bold text-xs">
                                     <span className="h-6 w-6 rounded-full bg-[#FBF0E1] flex items-center justify-center"><i className="fa-solid fa-hand-holding-dollar"></i></span>
@@ -3467,6 +3916,34 @@
                                         <input type="text" placeholder="Gõ lệnh quản trị..." value={aiCommand} onChange={(e) => setAiCommand(e.target.value)} className="flex-1 rounded-xl border border-[var(--c-line)] px-3 py-2.5 font-bold focus:outline-none focus:border-[var(--c-ai)]" />
                                         <button type="submit" className="bg-[var(--c-ai)] hover:bg-[var(--c-ai-dark)] text-white font-bold px-4 py-2.5 rounded-xl">Gửi</button>
                                     </form>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Modal: Đơn hàng đã bán — mở ra khi bấm ô "Lợi nhuận" ở trên. TÁI SỬ DỤNG NGUYÊN VẸN
+                            <MobileOrdersFeed> (đã tách riêng khỏi tab Bán hàng), đầy đủ lọc ngày + hủy/xóa/hóa đơn */}
+                        {showOrdersFeedModal && (
+                            <div className="fixed inset-0 z-50 bg-white flex flex-col">
+                                <div className="flex items-center gap-2.5 px-4 h-14 border-b border-gray-100 shrink-0">
+                                    <button onClick={() => setShowOrdersFeedModal(false)} className="text-[var(--c-primary)]"><i className="fa-solid fa-arrow-left text-lg"></i></button>
+                                    <span className="font-bold text-[var(--c-ink)] text-sm">📝 Đơn hàng đã bán</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-3">
+                                    <MobileOrdersFeed 
+                                        products={products}
+                                        setProducts={setProducts}
+                                        orders={orders}
+                                        setOrders={setOrders}
+                                        shippings={shippings}
+                                        setShippings={setShippings}
+                                        configs={configs}
+                                        showToast={showToast}
+                                        askConfirm={askConfirm}
+                                        deleteToTrash={deleteToTrash}
+                                        dbUpsertProduct={dbUpsertProduct}
+                                        dbUpsertOrder={dbUpsertOrder}
+                                        dbDeleteOrder={dbDeleteOrder}
+                                    />
                                 </div>
                             </div>
                         )}
