@@ -2342,7 +2342,8 @@
             const [viewingOrder, setViewingOrder] = useState(null);
             const [statusSheetOrder, setStatusSheetOrder] = useState(null);
             const [printOrder, setPrintOrder] = useState(null);
-            const [filterDate, setFilterDate] = useState("");
+            const [filterFromDate, setFilterFromDate] = useState("");
+            const [filterToDate, setFilterToDate] = useState("");
 
             // HỦY đơn (khách không muốn mua nữa): HOÀN KHO, đơn VẪN được giữ lại nhưng đổi trạng thái sang
             // "Hủy/Hoàn trả" (hiển thị màu đỏ) — không xóa khỏi danh sách, không đưa vào Thùng Rác.
@@ -2416,29 +2417,51 @@
             };
 
             const sortedOrders = [...orders]
-                .filter(o => !filterDate || (o.date || "").startsWith(filterDate))
+                .filter(o => {
+                    const d = (o.date || "").slice(0, 10);
+                    if (filterFromDate && d < filterFromDate) return false;
+                    if (filterToDate && d > filterToDate) return false;
+                    return true;
+                })
                 .reverse();
+
+            const hasDateFilter = !!(filterFromDate || filterToDate);
 
             return (
                 <div className="space-y-2.5">
-                    {/* Lọc theo ngày */}
-                    <div className="flex items-center gap-2">
-                        <input 
-                            type="date" 
-                            value={filterDate} 
-                            onChange={(e) => setFilterDate(e.target.value)} 
-                            className="flex-1 bg-white border border-[var(--c-line)] rounded-xl px-3 py-2.5 text-xs"
-                        />
-                        {filterDate && (
-                            <button onClick={() => setFilterDate("")} className="shrink-0 bg-[#F1F5F9] text-[var(--c-muted)] font-bold px-3 py-2.5 rounded-xl text-xs">
-                                Xóa lọc
+                    {/* Lọc theo khoảng ngày */}
+                    <div className="bg-white rounded-2xl border border-[var(--c-line)] p-3 space-y-2">
+                        <p className="font-bold text-[var(--c-muted)] text-xxs uppercase">📅 Lọc theo khoảng ngày</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="block text-[var(--c-muted)] text-xs mb-1">Từ ngày</label>
+                                <input 
+                                    type="date" 
+                                    value={filterFromDate} 
+                                    onChange={(e) => setFilterFromDate(e.target.value)} 
+                                    className="w-full bg-white border border-[var(--c-line)] rounded-xl px-3 py-2.5 text-xs"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[var(--c-muted)] text-xs mb-1">Đến ngày</label>
+                                <input 
+                                    type="date" 
+                                    value={filterToDate} 
+                                    onChange={(e) => setFilterToDate(e.target.value)} 
+                                    className="w-full bg-white border border-[var(--c-line)] rounded-xl px-3 py-2.5 text-xs"
+                                />
+                            </div>
+                        </div>
+                        {hasDateFilter && (
+                            <button onClick={() => { setFilterFromDate(""); setFilterToDate(""); }} className="w-full bg-[#F1F5F9] text-[var(--c-muted)] font-bold py-2 rounded-xl text-xs">
+                                Xóa lọc ngày
                             </button>
                         )}
                     </div>
 
                     {sortedOrders.length === 0 && (
                         <div className="bg-white rounded-2xl border border-[var(--c-line)] p-6 text-center text-[var(--c-muted)] text-xxs">
-                            {filterDate ? "Không có đơn hàng nào trong ngày đã chọn." : "Chưa có đơn hàng nào."}
+                            {hasDateFilter ? "Không có đơn hàng nào trong khoảng ngày đã chọn." : "Chưa có đơn hàng nào."}
                         </div>
                     )}
 
