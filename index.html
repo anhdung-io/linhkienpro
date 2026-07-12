@@ -1546,7 +1546,7 @@
 
                     {/* CONFIRM MODAL */}
                     {confirmModal.show && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
                             <div className="w-full max-w-xs rounded-xl bg-white p-4 shadow-2xl border border-[var(--c-line)] animate-fade-in">
                                 <h4 className="font-bold text-[var(--c-ink)] text-xs border-b pb-2 flex items-center gap-2 uppercase">
                                     <i className="fa-solid fa-circle-question text-[var(--c-primary-light)]"></i> {confirmModal.title}
@@ -1572,7 +1572,7 @@
 
                     {/* PROMPT MODAL */}
                     {promptModal.show && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
                             <div className="w-full max-w-xs rounded-xl bg-white p-4 shadow-2xl border border-[var(--c-line)]">
                                 <h4 className="font-bold text-[var(--c-ink)] text-xs border-b pb-2 flex items-center gap-2 uppercase">
                                     <i className="fa-solid fa-pen-to-square text-[var(--c-accent)]"></i> {promptModal.title}
@@ -1604,7 +1604,7 @@
 
                     {/* COPY & VIEW MODAL FOR AI DRAFTS */}
                     {copyModal.show && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
                             <div className="w-full max-w-sm rounded-xl bg-white p-4 shadow-2xl border border-[var(--c-line)] text-xxs">
                                 <h4 className="font-bold text-[var(--c-ink)] text-xs border-b pb-2 flex items-center gap-2 uppercase">
                                     <i className="fa-solid fa-wand-magic-sparkles text-[var(--c-ai)] animate-pulse"></i> {copyModal.title}
@@ -2749,11 +2749,16 @@
             const [showCheckoutSheet, setShowCheckoutSheet] = useState(false);
             const [createdInvoice, setCreatedInvoice] = useState(null);
 
-            // ============ NHẤN GIỮ ĐỂ KÉO SẮP XẾP THỨ TỰ ============
+            // ============ NHẤN GIỮ ĐỂ KÉO SẮP XẾP THỨ TỰ (mượt: chỉ dịch chuyển bằng transform trong lúc
+            // kéo, KHÔNG đụng vào state "products" của cả App cho tới khi thả tay, tránh giật/lag) ============
             const [draggingId, setDraggingId] = useState(null);
+            const [dragOffsetY, setDragOffsetY] = useState(0);
+            const [hoverIndex, setHoverIndex] = useState(null);
             const itemRefs = useRef({});
             const longPressTimerRef = useRef(null);
             const touchStartY = useRef(0);
+            const dragStartIndexRef = useRef(null);
+            const rowHeightRef = useRef(76);
 
             const resetForm = () => {
                 setEditingProduct(null);
@@ -2928,25 +2933,21 @@
             };
 
             // ============ NHẤN GIỮ ĐỂ KÉO SẮP XẾP (chỉ hoạt động khi KHÔNG ở chế độ Tạo đơn nhanh) ============
-            const moveProductToDisplayIndex = (draggedSku, targetDisplayIndex) => {
-                const targetSku = filtered[targetDisplayIndex] ? filtered[targetDisplayIndex].id : null;
-                if (!targetSku || targetSku === draggedSku) return;
-                setProducts(prev => {
-                    const list = [...prev];
-                    const fromIdx = list.findIndex(p => p.id === draggedSku);
-                    const toIdx = list.findIndex(p => p.id === targetSku);
-                    if (fromIdx === -1 || toIdx === -1) return prev;
-                    const [item] = list.splice(fromIdx, 1);
-                    list.splice(toIdx, 0, item);
-                    return list;
-                });
-            };
-
+            // Kỹ thuật: trong lúc kéo, KHÔNG reorder mảng thật (products) — chỉ tính "hoverIndex" (sẽ thả vào
+            // vị trí nào) rồi dịch các thẻ khác bằng transform: translateY(...) có transition mượt, còn thẻ
+            // đang kéo bám thẳng theo ngón tay (translateY = khoảng đã di chuyển, KHÔNG có transition -> không
+            // độ trễ). Chỉ khi thả tay mới thật sự ghi lại thứ tự vào state "products" + lưu Supabase 1 lần.
             const handleTouchStart = (e, productId) => {
                 if (quickOrderOpen) return; // đang ở chế độ Tạo đơn nhanh -> không cho kéo sắp xếp
                 touchStartY.current = e.touches[0].clientY;
                 longPressTimerRef.current = setTimeout(() => {
+                    const idx = filtered.findIndex(p => p.id === productId);
+                    dragStartIndexRef.current = idx;
+                    const el = itemRefs.current[productId];
+                    if (el) rowHeightRef.current = el.offsetHeight + 8; // 8px = khoảng cách space-y-2 giữa các thẻ
                     setDraggingId(productId);
+                    setHoverIndex(idx);
+                    setDragOffsetY(0);
                     if (navigator.vibrate) navigator.vibrate(30);
                 }, 350);
             };
@@ -2959,28 +2960,61 @@
                     if (dy > 10) clearTimeout(longPressTimerRef.current);
                     return;
                 }
-                const y = e.touches[0].clientY;
-                let targetIdx = null;
-                filtered.forEach((p, idx) => {
-                    const el = itemRefs.current[p.id];
-                    if (!el) return;
-                    const rect = el.getBoundingClientRect();
-                    if (y >= rect.top && y <= rect.bottom) targetIdx = idx;
-                });
-                if (targetIdx !== null) moveProductToDisplayIndex(draggingId, targetIdx);
+                const dy = e.touches[0].clientY - touchStartY.current;
+                setDragOffsetY(dy);
+                const rowH = rowHeightRef.current || 76;
+                const startIdx = dragStartIndexRef.current;
+                const rawTarget = startIdx + Math.round(dy / rowH);
+                const clamped = Math.max(0, Math.min(filtered.length - 1, rawTarget));
+                setHoverIndex(clamped);
             };
 
             const handleTouchEndList = () => {
                 clearTimeout(longPressTimerRef.current);
-                if (draggingId) {
-                    // Lưu thứ tự mới lên Supabase — đánh lại sortOrder tuần tự rồi lưu toàn bộ, giống hệt cơ
-                    // chế nút mũi tên lên/xuống ở bản Desktop (moveProduct), chỉ khác cách thao tác kéo-thả.
-                    const reindexed = products.map((p, i) => ({ ...p, sortOrder: i }));
-                    setProducts(reindexed);
-                    reindexed.forEach(p => dbUpsertProduct(p));
-                    showToast("Đã lưu thứ tự linh kiện mới!");
+                if (draggingId && hoverIndex !== null && hoverIndex !== dragStartIndexRef.current) {
+                    const targetSku = filtered[hoverIndex] ? filtered[hoverIndex].id : null;
+                    if (targetSku && targetSku !== draggingId) {
+                        const reordered = (() => {
+                            const list = [...products];
+                            const fromIdx = list.findIndex(p => p.id === draggingId);
+                            const toIdx = list.findIndex(p => p.id === targetSku);
+                            if (fromIdx === -1 || toIdx === -1) return null;
+                            const [item] = list.splice(fromIdx, 1);
+                            list.splice(toIdx, 0, item);
+                            return list;
+                        })();
+                        if (reordered) {
+                            // Lưu thứ tự mới lên Supabase — đánh lại sortOrder tuần tự rồi lưu toàn bộ, giống hệt
+                            // cơ chế nút mũi tên lên/xuống ở bản Desktop (moveProduct), chỉ khác cách thao tác.
+                            const reindexed = reordered.map((p, i) => ({ ...p, sortOrder: i }));
+                            setProducts(reindexed);
+                            reindexed.forEach(p => dbUpsertProduct(p));
+                            showToast("Đã lưu thứ tự linh kiện mới!");
+                        }
+                    }
                 }
                 setDraggingId(null);
+                setDragOffsetY(0);
+                setHoverIndex(null);
+                dragStartIndexRef.current = null;
+            };
+
+            // Tính transform cho từng thẻ trong lúc kéo: thẻ đang kéo bám thẳng theo ngón tay (không transition
+            // -> không độ trễ), các thẻ khác dịch chuyển 1 hàng để "nhường chỗ" kèm transition mượt.
+            const getItemStyle = (p, idx) => {
+                if (draggingId === p.id) {
+                    return { transform: `translateY(${dragOffsetY}px) scale(1.04)`, transition: "none", touchAction: "none", zIndex: 10 };
+                }
+                if (draggingId && hoverIndex !== null && dragStartIndexRef.current !== null) {
+                    const startIdx = dragStartIndexRef.current;
+                    let shift = 0;
+                    if (idx > startIdx && idx <= hoverIndex) shift = -1;
+                    else if (idx < startIdx && idx >= hoverIndex) shift = 1;
+                    if (shift !== 0) {
+                        return { transform: `translateY(${shift * rowHeightRef.current}px)`, transition: "transform 150ms ease-out" };
+                    }
+                }
+                return { transform: "translateY(0px)", transition: "transform 150ms ease-out" };
             };
 
             return (
@@ -3068,7 +3102,7 @@
                         {filtered.length === 0 && (
                             <div className="bg-white rounded-2xl border border-[var(--c-line)] p-6 text-center text-[var(--c-muted)] text-xxs">Không tìm thấy linh kiện nào.</div>
                         )}
-                        {filtered.map(p => (
+                        {filtered.map((p, idx) => (
                             <div 
                                 key={p.id}
                                 ref={(el) => { itemRefs.current[p.id] = el; }}
@@ -3076,8 +3110,8 @@
                                 onTouchMove={handleTouchMoveList}
                                 onTouchEnd={handleTouchEndList}
                                 onTouchCancel={handleTouchEndList}
-                                style={draggingId === p.id ? { touchAction: "none" } : undefined}
-                                className={`bg-white rounded-2xl border p-3.5 flex items-center gap-2.5 relative transition-transform ${draggingId === p.id ? 'scale-105 shadow-2xl ring-2 ring-[var(--c-primary)] z-10 border-[var(--c-primary)]' : 'border-[var(--c-line)]'}`}
+                                style={getItemStyle(p, idx)}
+                                className={`bg-white rounded-2xl border p-3.5 flex items-center gap-2.5 relative ${draggingId === p.id ? 'shadow-2xl ring-2 ring-[var(--c-primary)] z-10 border-[var(--c-primary)]' : 'border-[var(--c-line)]'}`}
                             >
                                 {!quickOrderOpen && (
                                     <span className="text-gray-300 shrink-0"><i className="fa-solid fa-grip-lines"></i></span>
